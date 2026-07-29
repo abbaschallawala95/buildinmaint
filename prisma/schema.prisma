@@ -1,0 +1,184 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  SUPER_ADMIN
+  MEMBER
+}
+
+enum PaymentStatus {
+  PAID
+  UNPAID
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  BANK_TRANSFER
+  CHEQUE
+  OTHER
+}
+
+enum ElectricityBillType {
+  LIFT
+  COMMON_AREA
+}
+
+// Mirrors a Supabase auth.users row; authUserId is that user's id.
+model Profile {
+  id         String   @id @default(uuid())
+  authUserId String   @unique
+  name       String
+  email      String   @unique
+  phone      String?
+  role       Role     @default(MEMBER)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  flat             Flat?                @relation("FlatMember")
+  recordedPayments MaintenancePayment[] @relation("PaymentRecordedBy")
+  recordedCharges  AdditionalCharge[]   @relation("ChargeRecordedBy")
+  recordedExpenses Expense[]            @relation("ExpenseRecordedBy")
+  recordedBills    ElectricityBill[]    @relation("BillRecordedBy")
+  auditLogs        AuditLog[]           @relation("AuditActor")
+
+  @@map("profiles")
+}
+
+model Floor {
+  id        String @id @default(uuid())
+  name      String
+  sortOrder Int    @default(0)
+
+  flats Flat[]
+
+  @@map("floors")
+}
+
+model Flat {
+  id                       String  @id @default(uuid())
+  floorId                  String
+  flatNumber               String
+  monthlyMaintenanceAmount Decimal @db.Decimal(10, 2)
+  memberId                 String? @unique
+
+  floor             Floor                @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  member            Profile?             @relation("FlatMember", fields: [memberId], references: [id], onDelete: SetNull)
+  payments          MaintenancePayment[]
+  additionalCharges AdditionalCharge[]
+
+  @@unique([floorId, flatNumber])
+  @@map("flats")
+}
+
+model MaintenancePayment {
+  id            String         @id @default(uuid())
+  flatId        String
+  month         Int // 1-12
+  year          Int
+  amount        Decimal        @db.Decimal(10, 2)
+  status        PaymentStatus  @default(UNPAID)
+  paymentDate   DateTime?
+  paymentMethod PaymentMethod?
+  notes         String?
+  recordedById  String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  flat       Flat     @relation(fields: [flatId], references: [id], onDelete: Cascade)
+  recordedBy Profile? @relation("PaymentRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@unique([flatId, month, year])
+  @@map("maintenance_payments")
+}
+
+model AdditionalCharge {
+  id           String        @id @default(uuid())
+  flatId       String
+  description  String
+  amount       Decimal       @db.Decimal(10, 2)
+  status       PaymentStatus @default(UNPAID)
+  dueDate      DateTime?
+  paymentDate  DateTime?
+  recordedById String?
+  createdAt    DateTime      @default(now())
+
+  flat       Flat     @relation(fields: [flatId], references: [id], onDelete: Cascade)
+  recordedBy Profile? @relation("ChargeRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@map("additional_charges")
+}
+
+model ExpenseCategory {
+  id   String @id @default(uuid())
+  name String @unique
+
+  expenses Expense[]
+
+  @@map("expense_categories")
+}
+
+model Expense {
+  id           String   @id @default(uuid())
+  categoryId   String
+  description  String
+  amount       Decimal  @db.Decimal(10, 2)
+  date         DateTime
+  recordedById String?
+  createdAt    DateTime @default(now())
+
+  category   ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  recordedBy Profile?        @relation("ExpenseRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@map("expenses")
+}
+
+model ElectricityBill {
+  id                 String              @id @default(uuid())
+  type               ElectricityBillType
+  billingPeriodStart DateTime
+  billingPeriodEnd   DateTime
+  amount             Decimal             @db.Decimal(10, 2)
+  dueDate            DateTime
+  status             PaymentStatus       @default(UNPAID)
+  paymentDate        DateTime?
+  recordedById       String?
+  createdAt          DateTime            @default(now())
+
+  recordedBy Profile? @relation("BillRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@map("electricity_bills")
+}
+
+// Singleton row (one building per deployment).
+model Settings {
+  id                         String  @id @default(uuid())
+  buildingName               String  @default("My Building")
+  openingBalance             Decimal @default(0) @db.Decimal(12, 2)
+  allowMembersViewFinancials Boolean @default(false)
+
+  @@map("settings")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  actor Profile? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
