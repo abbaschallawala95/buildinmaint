@@ -53,6 +53,7 @@ const updateSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   phone: z.string().optional(),
+  flatId: z.string().uuid().optional().or(z.literal("").transform(() => undefined)),
 });
 
 export async function updateMember(_prev: { error?: string }, formData: FormData) {
@@ -63,10 +64,11 @@ export async function updateMember(_prev: { error?: string }, formData: FormData
     name: formData.get("name"),
     email: formData.get("email"),
     phone: formData.get("phone") || undefined,
+    flatId: formData.get("flatId") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
-  const profile = await prisma.profile.findUnique({ where: { id: parsed.data.id } });
+  const profile = await prisma.profile.findUnique({ where: { id: parsed.data.id }, include: { flat: true } });
   if (!profile) return { error: "Member not found" };
 
   if (parsed.data.email !== profile.email) {
@@ -78,13 +80,30 @@ export async function updateMember(_prev: { error?: string }, formData: FormData
     if (error) return { error: error.message };
   }
 
-  await prisma.profile.update({
-    where: { id: parsed.data.id },
-    data: { name: parsed.data.name, email: parsed.data.email, phone: parsed.data.phone },
-  });
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.profile.update({
+        where: { id: parsed.data.id },
+        data: { name: parsed.data.name, email: parsed.data.email, phone: parsed.data.phone },
+      });
+
+      if (parsed.data.flatId !== profile.flat?.id) {
+        if (profile.flat) {
+          await tx.flat.update({ where: { id: profile.flat.id }, data: { memberId: null } });
+        }
+        if (parsed.data.flatId) {
+          await tx.flat.update({ where: { id: parsed.data.flatId }, data: { memberId: parsed.data.id } });
+        }
+      }
+    });
+  } catch {
+    return { error: "That flat is already assigned to another member." };
+  }
+
   await logAudit(actor.id, "UPDATE", "Profile", parsed.data.id, { name: parsed.data.name, email: parsed.data.email });
 
   revalidatePath("/admin/users");
+  revalidatePath("/admin/floors");
   return { error: undefined };
 }
 

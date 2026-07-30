@@ -37,11 +37,12 @@ No dedicated in-repo plan/TODO doc exists — DB migration names double as a rou
 
 ## Session log
 - **2026-07-30**: User confirmed mobile nav drawer, Cleaners section, and the refresh/connection-pool fix all work on phone testing.
-- **2026-07-30**: Fixed member edit dialog (`/admin/users`) — previously only Name + Phone were editable; Email is now editable too, matching the fields available at creation (minus password, which has its own "Reset Password" flow). Editing email now also updates the Supabase auth user's email (`admin.auth.admin.updateUserById`), not just the `Profile` row, so login stays in sync. Changed files: `src/app/admin/users/actions.ts` (`updateMember` now takes email, syncs Supabase auth), `src/app/admin/users/edit-member-dialog.tsx` (added email field + error/pending state), `src/app/admin/users/page.tsx` (passes `email` to dialog). Not yet committed/pushed — user hasn't asked to.
+- **2026-07-30**: Fixed member edit dialog (`/admin/users`) — previously only Name + Phone were editable; Email is now editable too, matching the fields available at creation (minus password, which has its own "Reset Password" flow). Editing email now also updates the Supabase auth user's email (`admin.auth.admin.updateUserById`), not just the `Profile` row, so login stays in sync. Committed as `e5b2806` and pushed to `main` — deployed via Vercel auto-deploy.
+- **2026-07-31**: Added flat (re)assignment to the same member edit dialog — previously flat assignment could only be changed from the Floors & Flats page's flat editor, so a member created without a flat, or one added with the wrong flat, couldn't be fixed from the Members page. `updateMember` (`src/app/admin/users/actions.ts`) now also accepts `flatId` and, in a transaction, clears the member's old flat (if any) and sets `memberId` on the newly chosen flat; a unique-constraint clash (flat already taken) surfaces as a friendly error instead of a crash. The flat dropdown in `edit-member-dialog.tsx` is scoped per-member in `page.tsx` to unassigned flats + the member's current flat, matching the same scoping logic already used in `floors/page.tsx`'s `FlatDialog`. Not yet committed/pushed.
 
 ## Where we left off
-Member edit dialog now supports editing all creation-time fields (name, email, phone). Not yet deployed to Vercel.
+Member edit dialog now supports editing all creation-time fields (name, email, phone) plus flat assignment/reassignment. The flat-assignment change is implemented and type-checks clean, but not yet committed or deployed.
 
 ## Next session: start here
-1. Check if the member-edit-email change has been committed/pushed/deployed yet, or if it's still pending from last session.
+1. Confirm the flat-assignment-in-edit change got committed/pushed/deployed (or do it if not).
 2. Ask if there's anything new to test or build.

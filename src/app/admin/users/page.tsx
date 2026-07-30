@@ -7,11 +7,17 @@ import { EditMemberDialog } from "./edit-member-dialog";
 import { MemberRowActions } from "./member-row-actions";
 
 export default async function UsersPage() {
-  const members = await prisma.profile.findMany({
-    where: { role: "MEMBER" },
-    include: { flat: { include: { floor: true } } },
-    orderBy: { createdAt: "asc" },
-  });
+  const [members, flats] = await Promise.all([
+    prisma.profile.findMany({
+      where: { role: "MEMBER" },
+      include: { flat: { include: { floor: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.flat.findMany({
+      include: { floor: true },
+      orderBy: [{ floor: { sortOrder: "asc" } }, { flatNumber: "asc" }],
+    }),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -59,7 +65,12 @@ export default async function UsersPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <EditMemberDialog member={{ id: m.id, name: m.name, email: m.email, phone: m.phone }} />
+                      <EditMemberDialog
+                        member={{ id: m.id, name: m.name, email: m.email, phone: m.phone, flatId: m.flat?.id ?? null }}
+                        flatOptions={flats
+                          .filter((f) => !f.memberId || f.memberId === m.id)
+                          .map((f) => ({ id: f.id, label: `${f.floor.name} / ${f.flatNumber}` }))}
+                      />
                       <MemberRowActions id={m.id} isActive={m.isActive} />
                     </div>
                   </TableCell>
