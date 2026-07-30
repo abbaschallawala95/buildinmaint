@@ -59,7 +59,7 @@ export default async function UsersPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <EditMemberDialog member={{ id: m.id, name: m.name, phone: m.phone }} />
+                      <EditMemberDialog member={{ id: m.id, name: m.name, email: m.email, phone: m.phone }} />
                       <MemberRowActions id={m.id} isActive={m.isActive} />
                     </div>
                   </TableCell>

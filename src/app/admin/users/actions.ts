@@ -51,25 +51,41 @@ export async function createMember(_prev: { error?: string }, formData: FormData
 const updateSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1),
+  email: z.string().email(),
   phone: z.string().optional(),
 });
 
-export async function updateMember(formData: FormData) {
+export async function updateMember(_prev: { error?: string }, formData: FormData) {
   const actor = await requireRole("SUPER_ADMIN");
 
-  const parsed = updateSchema.parse({
+  const parsed = updateSchema.safeParse({
     id: formData.get("id"),
     name: formData.get("name"),
+    email: formData.get("email"),
     phone: formData.get("phone") || undefined,
   });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  const profile = await prisma.profile.findUnique({ where: { id: parsed.data.id } });
+  if (!profile) return { error: "Member not found" };
+
+  if (parsed.data.email !== profile.email) {
+    const admin = createAdminClient();
+    const { error } = await admin.auth.admin.updateUserById(profile.authUserId, {
+      email: parsed.data.email,
+      email_confirm: true,
+    });
+    if (error) return { error: error.message };
+  }
 
   await prisma.profile.update({
-    where: { id: parsed.id },
-    data: { name: parsed.name, phone: parsed.phone },
+    where: { id: parsed.data.id },
+    data: { name: parsed.data.name, email: parsed.data.email, phone: parsed.data.phone },
   });
-  await logAudit(actor.id, "UPDATE", "Profile", parsed.id, { name: parsed.name });
+  await logAudit(actor.id, "UPDATE", "Profile", parsed.data.id, { name: parsed.data.name, email: parsed.data.email });
 
   revalidatePath("/admin/users");
+  return { error: undefined };
 }
 
 export async function setMemberActive(id: string, isActive: boolean) {

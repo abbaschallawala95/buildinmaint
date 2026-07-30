@@ -35,9 +35,13 @@ No dedicated in-repo plan/TODO doc exists — DB migration names double as a rou
 - Vercel build initially failed with `module-not-found` on `@/generated/prisma/client` because the generated client is gitignored and nothing ran `prisma generate` in a fresh checkout. Fixed by adding `"postinstall": "prisma generate"` to `package.json`.
 - Production started throwing "server error" on refresh: Supabase session-mode pooler caps at 15 clients, and each serverless invocation opened its own Prisma connection, exhausting it (`EMAXCONNSESSION`, confirmed via `vercel logs`). Fixed by switching Vercel's `DATABASE_URL` to the port-6543 transaction-mode pooler (`vercel env update DATABASE_URL production/preview --value ...`), then `vercel deploy --prod`.
 
+## Session log
+- **2026-07-30**: User confirmed mobile nav drawer, Cleaners section, and the refresh/connection-pool fix all work on phone testing.
+- **2026-07-30**: Fixed member edit dialog (`/admin/users`) — previously only Name + Phone were editable; Email is now editable too, matching the fields available at creation (minus password, which has its own "Reset Password" flow). Editing email now also updates the Supabase auth user's email (`admin.auth.admin.updateUserById`), not just the `Profile` row, so login stays in sync. Changed files: `src/app/admin/users/actions.ts` (`updateMember` now takes email, syncs Supabase auth), `src/app/admin/users/edit-member-dialog.tsx` (added email field + error/pending state), `src/app/admin/users/page.tsx` (passes `email` to dialog). Not yet committed/pushed — user hasn't asked to.
+
 ## Where we left off
-Pushed and deployed: mobile-friendly nav drawer + the Cleaners feature are both live. User has not yet tested either on their phone — said they'll test later.
+Member edit dialog now supports editing all creation-time fields (name, email, phone). Not yet deployed to Vercel.
 
 ## Next session: start here
-1. Ask what they found testing on their phone: mobile nav (drawer/hamburger works?), Cleaners section (`/admin/cleaners`), and whether the refresh error is gone.
-2. If nothing reported yet, ask before assuming everything works.
+1. Check if the member-edit-email change has been committed/pushed/deployed yet, or if it's still pending from last session.
+2. Ask if there's anything new to test or build.
