@@ -9,8 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { logout } from "@/app/login/actions";
 
-export type NavLink = { href: string; label: string; icon: LucideIcon };
-
 const NAV_BY_ROLE = {
   admin: [
     { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -30,17 +28,20 @@ export function NavShell({
   role,
   title,
   userName,
-  links: linksOverride,
+  showMonthlyData,
   children,
 }: {
   role: keyof typeof NAV_BY_ROLE;
   title: string;
   userName: string;
-  links?: NavLink[];
+  showMonthlyData?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const links = linksOverride ?? NAV_BY_ROLE[role];
+  const links: { href: string; label: string; icon: LucideIcon }[] =
+    role === "member" && showMonthlyData
+      ? [...NAV_BY_ROLE.member, { href: "/member/monthly-data", label: "Monthly Data", icon: PiggyBank }]
+      : [...NAV_BY_ROLE[role]];
   const [open, setOpen] = useState(false);
 
   useEffect(() => setOpen(false), [pathname]);
