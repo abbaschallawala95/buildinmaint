@@ -104,6 +104,16 @@ export async function getFinancialOverview() {
     })),
   ].sort((a, b) => b.date.getTime() - a.date.getTime());
 
+  const monthTransactions = transactions.filter(
+    (t) => t.date.getMonth() + 1 === month && t.date.getFullYear() === year,
+  );
+  const monthIncome = monthTransactions
+    .filter((t) => t.kind === "income")
+    .reduce((sum, t) => sum + t.amount, 0);
+  const monthExpenses = monthTransactions
+    .filter((t) => t.kind === "expense")
+    .reduce((sum, t) => sum + t.amount, 0);
+
   return {
     settings,
     totalMaintenanceCollected,
@@ -118,6 +128,9 @@ export async function getFinancialOverview() {
     outstandingDues,
     pendingMaintenanceThisMonth,
     pendingCharges,
+    monthIncome,
+    monthExpenses,
+    monthTransactions,
     recentTransactions: transactions.slice(0, 10),
     overdueBills,
     overdueCharges: unpaidCharges.filter((c) => c.dueDate && c.dueDate < now),

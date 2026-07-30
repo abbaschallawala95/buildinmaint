@@ -3,10 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Building2, LayoutDashboard, Users, Wallet, Receipt, Zap, Settings, History, Menu, X, Sparkles } from "lucide-react";
+import { LogOut, Building2, LayoutDashboard, Users, Wallet, Receipt, Zap, Settings, History, Menu, X, Sparkles, PiggyBank } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { logout } from "@/app/login/actions";
+
+export type NavLink = { href: string; label: string; icon: LucideIcon };
 
 const NAV_BY_ROLE = {
   admin: [
@@ -27,15 +30,17 @@ export function NavShell({
   role,
   title,
   userName,
+  links: linksOverride,
   children,
 }: {
   role: keyof typeof NAV_BY_ROLE;
   title: string;
   userName: string;
+  links?: NavLink[];
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const links = NAV_BY_ROLE[role];
+  const links = linksOverride ?? NAV_BY_ROLE[role];
   const [open, setOpen] = useState(false);
 
   useEffect(() => setOpen(false), [pathname]);
