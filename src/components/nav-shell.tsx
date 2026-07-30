@@ -1,8 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Building2, LayoutDashboard, Users, Wallet, Receipt, Zap, Settings, History } from "lucide-react";
+import { LogOut, Building2, LayoutDashboard, Users, Wallet, Receipt, Zap, Settings, History, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { logout } from "@/app/login/actions";
@@ -34,10 +35,24 @@ export function NavShell({
 }) {
   const pathname = usePathname();
   const links = NAV_BY_ROLE[role];
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => setOpen(false), [pathname]);
 
   return (
     <div className="flex min-h-screen">
-      <aside className="flex w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground">
+      {open && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          onClick={() => setOpen(false)}
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 -translate-x-full flex-col bg-sidebar text-sidebar-foreground transition-transform duration-200 md:static md:translate-x-0 ${
+          open ? "translate-x-0" : ""
+        }`}
+      >
         <div className="flex items-center gap-2 px-5 py-5">
           <div className="flex size-9 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground">
             <Building2 className="size-5" />
@@ -46,6 +61,14 @@ export function NavShell({
             <p className="text-sm font-semibold leading-tight">Building Maintenance</p>
             <p className="text-xs text-sidebar-foreground/60">{title}</p>
           </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="ml-auto text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground md:hidden"
+            onClick={() => setOpen(false)}
+          >
+            <X className="size-4" />
+          </Button>
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-2">
@@ -92,9 +115,18 @@ export function NavShell({
         </div>
       </aside>
 
-      <main className="flex-1 overflow-x-hidden bg-muted/30 px-8 py-8">
-        <div className="mx-auto max-w-6xl">{children}</div>
-      </main>
+      <div className="flex min-h-screen flex-1 flex-col overflow-x-hidden">
+        <header className="flex items-center gap-3 border-b bg-background px-4 py-3 md:hidden">
+          <Button variant="ghost" size="icon-sm" onClick={() => setOpen(true)}>
+            <Menu className="size-5" />
+          </Button>
+          <p className="text-sm font-semibold">{title}</p>
+        </header>
+
+        <main className="flex-1 bg-muted/30 px-4 py-4 sm:px-8 sm:py-8">
+          <div className="mx-auto max-w-6xl">{children}</div>
+        </main>
+      </div>
     </div>
   );
 }
