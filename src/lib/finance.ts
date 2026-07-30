@@ -11,27 +11,36 @@ export type Transaction = {
 };
 
 export async function getFinancialOverview() {
-  const [settings, paidPayments, paidCharges, expenses, paidBills, unpaidCharges, overdueBills] =
-    await Promise.all([
-      getSettings(),
-      prisma.maintenancePayment.findMany({
-        where: { status: "PAID" },
-        include: { flat: { include: { floor: true } } },
-      }),
-      prisma.additionalCharge.findMany({
-        where: { status: "PAID" },
-        include: { flat: { include: { floor: true } } },
-      }),
-      prisma.expense.findMany({ include: { category: true } }),
-      prisma.electricityBill.findMany({ where: { status: "PAID" } }),
-      prisma.additionalCharge.findMany({
-        where: { status: "UNPAID" },
-        include: { flat: { include: { floor: true } } },
-      }),
-      prisma.electricityBill.findMany({
-        where: { status: "UNPAID", dueDate: { lt: new Date() } },
-      }),
-    ]);
+  const [
+    settings,
+    paidPayments,
+    paidCharges,
+    expenses,
+    paidBills,
+    paidCleanerPayments,
+    unpaidCharges,
+    overdueBills,
+  ] = await Promise.all([
+    getSettings(),
+    prisma.maintenancePayment.findMany({
+      where: { status: "PAID" },
+      include: { flat: { include: { floor: true } } },
+    }),
+    prisma.additionalCharge.findMany({
+      where: { status: "PAID" },
+      include: { flat: { include: { floor: true } } },
+    }),
+    prisma.expense.findMany({ include: { category: true } }),
+    prisma.electricityBill.findMany({ where: { status: "PAID" } }),
+    prisma.cleanerPayment.findMany({ where: { status: "PAID" }, include: { cleaner: true } }),
+    prisma.additionalCharge.findMany({
+      where: { status: "UNPAID" },
+      include: { flat: { include: { floor: true } } },
+    }),
+    prisma.electricityBill.findMany({
+      where: { status: "UNPAID", dueDate: { lt: new Date() } },
+    }),
+  ]);
 
   const totalMaintenanceCollected = paidPayments.reduce((sum, p) => sum + Number(p.amount), 0);
   const totalAdditionalIncome = paidCharges.reduce((sum, c) => sum + Number(c.amount), 0);
@@ -39,7 +48,8 @@ export async function getFinancialOverview() {
 
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const totalElectricityPaid = paidBills.reduce((sum, b) => sum + Number(b.amount), 0);
-  const totalOutgoing = totalExpenses + totalElectricityPaid;
+  const totalCleanerSalaryPaid = paidCleanerPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const totalOutgoing = totalExpenses + totalElectricityPaid + totalCleanerSalaryPaid;
 
   const openingBalance = Number(settings.openingBalance);
   const closingBalance = openingBalance + totalIncome - totalOutgoing;
@@ -85,6 +95,13 @@ export async function getFinancialOverview() {
       amount: Number(b.amount),
       kind: "expense" as const,
     })),
+    ...paidCleanerPayments.map((p) => ({
+      id: `cleaner-payment-${p.id}`,
+      date: p.paymentDate ?? p.createdAt,
+      description: `Cleaner Salary — ${p.cleaner.name}`,
+      amount: Number(p.amount),
+      kind: "expense" as const,
+    })),
   ].sort((a, b) => b.date.getTime() - a.date.getTime());
 
   return {
@@ -94,6 +111,7 @@ export async function getFinancialOverview() {
     totalIncome,
     totalExpenses,
     totalElectricityPaid,
+    totalCleanerSalaryPaid,
     totalOutgoing,
     openingBalance,
     closingBalance,

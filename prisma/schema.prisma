@@ -44,12 +44,13 @@ model Profile {
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
 
-  flat             Flat?                @relation("FlatMember")
-  recordedPayments MaintenancePayment[] @relation("PaymentRecordedBy")
-  recordedCharges  AdditionalCharge[]   @relation("ChargeRecordedBy")
-  recordedExpenses Expense[]            @relation("ExpenseRecordedBy")
-  recordedBills    ElectricityBill[]    @relation("BillRecordedBy")
-  auditLogs        AuditLog[]           @relation("AuditActor")
+  flat                    Flat?                @relation("FlatMember")
+  recordedPayments        MaintenancePayment[] @relation("PaymentRecordedBy")
+  recordedCharges         AdditionalCharge[]   @relation("ChargeRecordedBy")
+  recordedExpenses        Expense[]            @relation("ExpenseRecordedBy")
+  recordedBills           ElectricityBill[]    @relation("BillRecordedBy")
+  recordedCleanerPayments CleanerPayment[]     @relation("CleanerPaymentRecordedBy")
+  auditLogs               AuditLog[]           @relation("AuditActor")
 
   @@map("profiles")
 }
@@ -157,6 +158,36 @@ model ElectricityBill {
   recordedBy Profile? @relation("BillRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
 
   @@map("electricity_bills")
+}
+
+model Cleaner {
+  id            String   @id @default(uuid())
+  name          String
+  monthlySalary Decimal  @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+
+  payments CleanerPayment[]
+
+  @@map("cleaners")
+}
+
+model CleanerPayment {
+  id            String         @id @default(uuid())
+  cleanerId     String
+  month         Int // 1-12
+  year          Int
+  amount        Decimal        @db.Decimal(10, 2)
+  status        PaymentStatus  @default(UNPAID)
+  paymentDate   DateTime?
+  paymentMethod PaymentMethod?
+  recordedById  String?
+  createdAt     DateTime       @default(now())
+
+  cleaner    Cleaner  @relation(fields: [cleanerId], references: [id], onDelete: Cascade)
+  recordedBy Profile? @relation("CleanerPaymentRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@unique([cleanerId, month, year])
+  @@map("cleaner_payments")
 }
 
 // Singleton row (one building per deployment).

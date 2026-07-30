@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Building2, LayoutDashboard, Users, Wallet, Receipt, Zap, Settings, History, Menu, X } from "lucide-react";
+import { LogOut, Building2, LayoutDashboard, Users, Wallet, Receipt, Zap, Settings, History, Menu, X, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { logout } from "@/app/login/actions";
@@ -16,6 +16,7 @@ const NAV_BY_ROLE = {
     { href: "/admin/payments", label: "Payments", icon: Wallet },
     { href: "/admin/expenses", label: "Expenses", icon: Receipt },
     { href: "/admin/electricity", label: "Electricity Bills", icon: Zap },
+    { href: "/admin/cleaners", label: "Cleaners", icon: Sparkles },
     { href: "/admin/audit-log", label: "Audit Log", icon: History },
     { href: "/admin/settings", label: "Settings", icon: Settings },
   ],
