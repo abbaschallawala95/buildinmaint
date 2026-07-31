@@ -10,7 +10,7 @@ export type Transaction = {
   kind: "income" | "expense";
 };
 
-export async function getFinancialOverview() {
+export async function getFinancialOverview(period?: { month: number; year: number }) {
   const [
     settings,
     paidPayments,
@@ -55,8 +55,8 @@ export async function getFinancialOverview() {
   const closingBalance = openingBalance + totalIncome - totalOutgoing;
 
   const now = new Date();
-  const month = now.getMonth() + 1;
-  const year = now.getFullYear();
+  const month = period?.month ?? now.getMonth() + 1;
+  const year = period?.year ?? now.getFullYear();
   const flatsUnpaidThisMonth = await prisma.flat.findMany({
     include: { payments: { where: { month, year } }, floor: true },
   });

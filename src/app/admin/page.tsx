@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Wallet, AlertCircle, Building2, Layers, Users, PiggyBank, TrendingDown, Landmark } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
@@ -5,21 +6,40 @@ import { getFinancialOverview } from "@/lib/finance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
 
-export default async function AdminDashboardPage() {
+export default async function AdminDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string; year?: string }>;
+}) {
+  const params = await searchParams;
   const now = new Date();
-  const overview = await getFinancialOverview();
+  const isFiltered = Boolean(params.month || params.year);
+  const month = Number(params.month) || now.getMonth() + 1;
+  const year = Number(params.year) || now.getFullYear();
+  const overview = await getFinancialOverview(isFiltered ? { month, year } : undefined);
 
   const [floorCount, flatCount, memberCount] = await Promise.all([
     prisma.floor.count(),
     prisma.flat.count(),
     prisma.profile.count({ where: { role: "MEMBER" } }),
   ]);
+
+  const incomeLabel = isFiltered
+    ? `Income (${MONTH_NAMES[month - 1]} ${year})`
+    : "Total Income (All Time)";
+  const expenseLabel = isFiltered
+    ? `Expenses (${MONTH_NAMES[month - 1]} ${year})`
+    : "Total Expenses (All Time)";
+  const incomeValue = isFiltered ? overview.monthIncome : overview.totalIncome;
+  const expenseValue = isFiltered ? overview.monthExpenses : overview.totalOutgoing;
 
   const stats: { label: string; value: string | number; icon: LucideIcon; tone: string }[] = [
     {
@@ -29,14 +49,14 @@ export default async function AdminDashboardPage() {
       tone: "text-primary bg-primary/10",
     },
     {
-      label: "Total Income (All Time)",
-      value: `₹${overview.totalIncome.toLocaleString()}`,
+      label: incomeLabel,
+      value: `₹${incomeValue.toLocaleString()}`,
       icon: PiggyBank,
       tone: "text-emerald-600 bg-emerald-500/10",
     },
     {
-      label: "Total Expenses (All Time)",
-      value: `₹${overview.totalOutgoing.toLocaleString()}`,
+      label: expenseLabel,
+      value: `₹${expenseValue.toLocaleString()}`,
       icon: TrendingDown,
       tone: "text-rose-600 bg-rose-500/10",
     },
@@ -58,11 +78,48 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          {overview.settings.buildingName} · {MONTH_NAMES[now.getMonth()]} {now.getFullYear()}
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            {overview.settings.buildingName} · {MONTH_NAMES[now.getMonth()]} {now.getFullYear()}
+          </p>
+        </div>
+        <form method="get" className="flex items-end gap-2">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Month</label>
+            <select
+              name="month"
+              defaultValue={month}
+              className="h-9 rounded-md border bg-background px-3 text-sm"
+            >
+              {MONTH_NAMES.map((m, i) => (
+                <option key={m} value={i + 1}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Year</label>
+            <Input name="year" type="number" defaultValue={year} className="w-24" />
+          </div>
+          <Button type="submit" variant="outline">
+            View
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            render={
+              <Link href={`/admin?month=${now.getMonth() + 1}&year=${now.getFullYear()}`}>
+                This Month
+              </Link>
+            }
+          />
+          {isFiltered && (
+            <Button type="button" variant="ghost" render={<Link href="/admin">All Time</Link>} />
+          )}
+        </form>
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
