@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { updateSettings } from "./actions";
+import { DangerZone } from "./danger-zone";
 
 export default async function SettingsPage() {
   const settings = await getSettings();
@@ -57,6 +58,8 @@ export default async function SettingsPage() {
           </form>
         </CardContent>
       </Card>
+
+      <DangerZone />
     </div>
   );
 }
