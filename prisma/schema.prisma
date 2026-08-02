@@ -45,12 +45,12 @@ model Profile {
   createdAt  DateTime @default(now())
 
   flat                    Flat?                @relation("FlatMember")
-  recordedPayments        MaintenancePayment[] @relation("PaymentRecordedBy")
-  recordedCharges         AdditionalCharge[]   @relation("ChargeRecordedBy")
-  recordedExpenses        Expense[]            @relation("ExpenseRecordedBy")
-  recordedBills           ElectricityBill[]    @relation("BillRecordedBy")
-  recordedCleanerPayments CleanerPayment[]     @relation("CleanerPaymentRecordedBy")
-  auditLogs               AuditLog[]           @relation("AuditActor")
+  recordedPayments        MaintenancePayment[]   @relation("PaymentRecordedBy")
+  recordedCharges         AdditionalCharge[]     @relation("ChargeRecordedBy")
+  recordedExpenses        Expense[]              @relation("ExpenseRecordedBy")
+  recordedBills           ElectricityBill[]      @relation("BillRecordedBy")
+  recordedCleanerPayments CleanerPaymentEntry[]  @relation("CleanerPaymentRecordedBy")
+  auditLogs               AuditLog[]             @relation("AuditActor")
 
   @@map("profiles")
 }
@@ -163,31 +163,61 @@ model ElectricityBill {
 model Cleaner {
   id            String   @id @default(uuid())
   name          String
-  monthlySalary Decimal  @db.Decimal(10, 2)
+  monthlySalary Decimal  @db.Decimal(10, 2) // current/latest rate; see CleanerSalaryHistory for per-month rate
   createdAt     DateTime @default(now())
 
-  payments CleanerPayment[]
+  payments      CleanerPayment[]
+  salaryHistory CleanerSalaryHistory[]
 
   @@map("cleaners")
 }
 
-model CleanerPayment {
-  id            String         @id @default(uuid())
-  cleanerId     String
-  month         Int // 1-12
-  year          Int
-  amount        Decimal        @db.Decimal(10, 2)
-  status        PaymentStatus  @default(UNPAID)
-  paymentDate   DateTime?
-  paymentMethod PaymentMethod?
-  recordedById  String?
-  createdAt     DateTime       @default(now())
+// One row per (cleaner, month) the salary rate changed, effective from that month onward.
+model CleanerSalaryHistory {
+  id             String   @id @default(uuid())
+  cleanerId      String
+  amount         Decimal  @db.Decimal(10, 2)
+  effectiveMonth Int // 1-12
+  effectiveYear  Int
+  createdAt      DateTime @default(now())
 
-  cleaner    Cleaner  @relation(fields: [cleanerId], references: [id], onDelete: Cascade)
-  recordedBy Profile? @relation("CleanerPaymentRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+  cleaner Cleaner @relation(fields: [cleanerId], references: [id], onDelete: Cascade)
+
+  @@unique([cleanerId, effectiveMonth, effectiveYear])
+  @@map("cleaner_salary_history")
+}
+
+// One row per (cleaner, month); the amount due is derived from CleanerSalaryHistory, not stored here.
+// Actual money paid is tracked as CleanerPaymentEntry rows underneath, so a month can be paid in parts,
+// or a future month's entry recorded early as an advance.
+model CleanerPayment {
+  id        String   @id @default(uuid())
+  cleanerId String
+  month     Int // 1-12
+  year      Int
+  createdAt DateTime @default(now())
+
+  cleaner Cleaner               @relation(fields: [cleanerId], references: [id], onDelete: Cascade)
+  entries CleanerPaymentEntry[]
 
   @@unique([cleanerId, month, year])
   @@map("cleaner_payments")
+}
+
+model CleanerPaymentEntry {
+  id               String        @id @default(uuid())
+  cleanerPaymentId String
+  amount           Decimal       @db.Decimal(10, 2)
+  paymentDate      DateTime
+  paymentMethod    PaymentMethod
+  notes            String?
+  recordedById     String?
+  createdAt        DateTime      @default(now())
+
+  cleanerPayment CleanerPayment @relation(fields: [cleanerPaymentId], references: [id], onDelete: Cascade)
+  recordedBy     Profile?       @relation("CleanerPaymentRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@map("cleaner_payment_entries")
 }
 
 // Singleton row (one building per deployment).

@@ -17,7 +17,7 @@ export async function getFinancialOverview(period?: { month: number; year: numbe
     paidCharges,
     expenses,
     paidBills,
-    paidCleanerPayments,
+    cleanerPaymentEntries,
     unpaidCharges,
     overdueBills,
   ] = await Promise.all([
@@ -32,7 +32,7 @@ export async function getFinancialOverview(period?: { month: number; year: numbe
     }),
     prisma.expense.findMany({ include: { category: true } }),
     prisma.electricityBill.findMany({ where: { status: "PAID" } }),
-    prisma.cleanerPayment.findMany({ where: { status: "PAID" }, include: { cleaner: true } }),
+    prisma.cleanerPaymentEntry.findMany({ include: { cleanerPayment: { include: { cleaner: true } } } }),
     prisma.additionalCharge.findMany({
       where: { status: "UNPAID" },
       include: { flat: { include: { floor: true } } },
@@ -48,7 +48,7 @@ export async function getFinancialOverview(period?: { month: number; year: numbe
 
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const totalElectricityPaid = paidBills.reduce((sum, b) => sum + Number(b.amount), 0);
-  const totalCleanerSalaryPaid = paidCleanerPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const totalCleanerSalaryPaid = cleanerPaymentEntries.reduce((sum, e) => sum + Number(e.amount), 0);
   const totalOutgoing = totalExpenses + totalElectricityPaid + totalCleanerSalaryPaid;
 
   const openingBalance = Number(settings.openingBalance);
@@ -95,11 +95,11 @@ export async function getFinancialOverview(period?: { month: number; year: numbe
       amount: Number(b.amount),
       kind: "expense" as const,
     })),
-    ...paidCleanerPayments.map((p) => ({
-      id: `cleaner-payment-${p.id}`,
-      date: p.paymentDate ?? p.createdAt,
-      description: `Cleaner Salary — ${p.cleaner.name}`,
-      amount: Number(p.amount),
+    ...cleanerPaymentEntries.map((e) => ({
+      id: `cleaner-payment-entry-${e.id}`,
+      date: e.paymentDate,
+      description: `Cleaner Salary — ${e.cleanerPayment.cleaner.name}`,
+      amount: Number(e.amount),
       kind: "expense" as const,
     })),
   ].sort((a, b) => b.date.getTime() - a.date.getTime());

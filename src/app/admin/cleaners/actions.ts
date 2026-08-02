@@ -18,7 +18,15 @@ export async function createCleaner(formData: FormData) {
     monthlySalary: formData.get("monthlySalary"),
   });
 
-  const cleaner = await prisma.cleaner.create({ data: parsed });
+  const now = new Date();
+  const cleaner = await prisma.cleaner.create({
+    data: {
+      ...parsed,
+      salaryHistory: {
+        create: { amount: parsed.monthlySalary, effectiveMonth: now.getMonth() + 1, effectiveYear: now.getFullYear() },
+      },
+    },
+  });
   await logAudit(admin.id, "CREATE", "Cleaner", cleaner.id, parsed);
 
   revalidatePath("/admin/cleaners");
@@ -34,10 +42,21 @@ export async function updateCleaner(formData: FormData) {
     monthlySalary: formData.get("monthlySalary"),
   });
 
-  await prisma.cleaner.update({
-    where: { id: parsed.id },
-    data: { name: parsed.name, monthlySalary: parsed.monthlySalary },
-  });
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+
+  await prisma.$transaction([
+    prisma.cleaner.update({
+      where: { id: parsed.id },
+      data: { name: parsed.name, monthlySalary: parsed.monthlySalary },
+    }),
+    prisma.cleanerSalaryHistory.upsert({
+      where: { cleanerId_effectiveMonth_effectiveYear: { cleanerId: parsed.id, effectiveMonth: month, effectiveYear: year } },
+      create: { cleanerId: parsed.id, amount: parsed.monthlySalary, effectiveMonth: month, effectiveYear: year },
+      update: { amount: parsed.monthlySalary },
+    }),
+  ]);
   await logAudit(admin.id, "UPDATE", "Cleaner", parsed.id, parsed);
 
   revalidatePath("/admin/cleaners");
@@ -52,49 +71,45 @@ export async function deleteCleaner(id: string) {
   revalidatePath("/admin");
 }
 
-const markPaidSchema = z.object({
+const addPaymentSchema = z.object({
   cleanerId: z.string().uuid(),
   month: z.coerce.number().int().min(1).max(12),
   year: z.coerce.number().int().min(2000),
-  amount: z.coerce.number().nonnegative(),
+  amount: z.coerce.number().positive(),
   paymentDate: z.string().min(1),
   paymentMethod: z.enum(["CASH", "UPI", "BANK_TRANSFER", "CHEQUE", "OTHER"]),
+  notes: z.string().optional(),
 });
 
-export async function markCleanerPaid(formData: FormData) {
+export async function addCleanerPaymentEntry(formData: FormData) {
   const admin = await requireRole("SUPER_ADMIN");
-  const parsed = markPaidSchema.parse({
+  const parsed = addPaymentSchema.parse({
     cleanerId: formData.get("cleanerId"),
     month: formData.get("month"),
     year: formData.get("year"),
     amount: formData.get("amount"),
     paymentDate: formData.get("paymentDate"),
     paymentMethod: formData.get("paymentMethod"),
+    notes: formData.get("notes") || undefined,
   });
 
   const payment = await prisma.cleanerPayment.upsert({
-    where: {
-      cleanerId_month_year: { cleanerId: parsed.cleanerId, month: parsed.month, year: parsed.year },
-    },
-    create: {
-      cleanerId: parsed.cleanerId,
-      month: parsed.month,
-      year: parsed.year,
+    where: { cleanerId_month_year: { cleanerId: parsed.cleanerId, month: parsed.month, year: parsed.year } },
+    create: { cleanerId: parsed.cleanerId, month: parsed.month, year: parsed.year },
+    update: {},
+  });
+
+  const entry = await prisma.cleanerPaymentEntry.create({
+    data: {
+      cleanerPaymentId: payment.id,
       amount: parsed.amount,
-      status: "PAID",
       paymentDate: new Date(parsed.paymentDate),
       paymentMethod: parsed.paymentMethod,
-      recordedById: admin.id,
-    },
-    update: {
-      amount: parsed.amount,
-      status: "PAID",
-      paymentDate: new Date(parsed.paymentDate),
-      paymentMethod: parsed.paymentMethod,
+      notes: parsed.notes,
       recordedById: admin.id,
     },
   });
-  await logAudit(admin.id, "MARK_PAID", "CleanerPayment", payment.id, {
+  await logAudit(admin.id, "CREATE", "CleanerPaymentEntry", entry.id, {
     month: parsed.month,
     year: parsed.year,
     amount: parsed.amount,
@@ -104,33 +119,10 @@ export async function markCleanerPaid(formData: FormData) {
   revalidatePath("/admin");
 }
 
-const markUnpaidSchema = z.object({
-  cleanerId: z.string().uuid(),
-  month: z.coerce.number().int().min(1).max(12),
-  year: z.coerce.number().int().min(2000),
-});
-
-export async function markCleanerUnpaid(formData: FormData) {
+export async function deleteCleanerPaymentEntry(id: string) {
   const admin = await requireRole("SUPER_ADMIN");
-  const parsed = markUnpaidSchema.parse({
-    cleanerId: formData.get("cleanerId"),
-    month: formData.get("month"),
-    year: formData.get("year"),
-  });
-
-  await prisma.cleanerPayment
-    .delete({
-      where: {
-        cleanerId_month_year: { cleanerId: parsed.cleanerId, month: parsed.month, year: parsed.year },
-      },
-    })
-    .catch(() => {
-      // No row means it was already unpaid (default state) — nothing to do.
-    });
-  await logAudit(admin.id, "MARK_UNPAID", "CleanerPayment", parsed.cleanerId, {
-    month: parsed.month,
-    year: parsed.year,
-  });
+  await prisma.cleanerPaymentEntry.delete({ where: { id } });
+  await logAudit(admin.id, "DELETE", "CleanerPaymentEntry", id);
 
   revalidatePath("/admin/cleaners");
   revalidatePath("/admin");

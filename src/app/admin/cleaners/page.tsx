@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { CleanerDialog } from "./cleaner-dialog";
-import { MarkCleanerPaidDialog } from "./mark-paid-dialog";
-import { deleteCleaner, markCleanerUnpaid } from "./actions";
+import { CleanerPaymentsDialog } from "./payments-dialog";
+import { deleteCleaner } from "./actions";
+import { salaryForMonth } from "@/lib/cleaner-salary";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -26,7 +27,10 @@ export default async function CleanersPage({
 
   const cleaners = await prisma.cleaner.findMany({
     orderBy: { createdAt: "asc" },
-    include: { payments: { where: { month, year } } },
+    include: {
+      salaryHistory: true,
+      payments: { where: { month, year }, include: { entries: { orderBy: { paymentDate: "asc" } } } },
+    },
   });
 
   return (
@@ -70,9 +74,9 @@ export default async function CleanersPage({
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Monthly Salary</TableHead>
+                <TableHead>Due</TableHead>
+                <TableHead>Paid</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Payment Date</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -85,39 +89,50 @@ export default async function CleanersPage({
                 </TableRow>
               )}
               {cleaners.map((cleaner) => {
-                const payment = cleaner.payments[0];
-                const isPaid = payment?.status === "PAID";
+                const due = salaryForMonth(
+                  cleaner.salaryHistory.map((h) => ({
+                    amount: Number(h.amount),
+                    effectiveMonth: h.effectiveMonth,
+                    effectiveYear: h.effectiveYear,
+                  })),
+                  month,
+                  year,
+                );
+                const entries = cleaner.payments[0]?.entries ?? [];
+                const paid = entries.reduce((sum, e) => sum + Number(e.amount), 0);
+                const status = paid <= 0 ? "UNPAID" : paid >= due ? "PAID" : "PARTIAL";
                 return (
                   <TableRow key={cleaner.id}>
                     <TableCell>{cleaner.name}</TableCell>
-                    <TableCell>₹{cleaner.monthlySalary.toString()}</TableCell>
+                    <TableCell>₹{due.toFixed(2)}</TableCell>
+                    <TableCell>₹{paid.toFixed(2)}</TableCell>
                     <TableCell>
-                      <Badge variant={isPaid ? "default" : "secondary"}>
-                        {isPaid ? "Paid" : "Unpaid"}
+                      <Badge variant={status === "PAID" ? "default" : status === "PARTIAL" ? "outline" : "secondary"}>
+                        {status === "PAID" ? "Paid" : status === "PARTIAL" ? "Partial" : "Unpaid"}
                       </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {payment?.paymentDate ? payment.paymentDate.toLocaleDateString() : "—"}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        {isPaid ? (
-                          <form action={markCleanerUnpaid} className="inline">
-                            <input type="hidden" name="cleanerId" value={cleaner.id} />
-                            <input type="hidden" name="month" value={month} />
-                            <input type="hidden" name="year" value={year} />
-                            <Button variant="outline" size="sm" type="submit">
-                              Mark Unpaid
+                        <CleanerPaymentsDialog
+                          cleanerName={cleaner.name}
+                          cleanerId={cleaner.id}
+                          month={month}
+                          year={year}
+                          due={due}
+                          paid={paid}
+                          entries={entries.map((e) => ({
+                            id: e.id,
+                            amount: e.amount.toString(),
+                            paymentDate: e.paymentDate.toISOString(),
+                            paymentMethod: e.paymentMethod,
+                            notes: e.notes,
+                          }))}
+                          trigger={
+                            <Button variant="outline" size="sm">
+                              Payments
                             </Button>
-                          </form>
-                        ) : (
-                          <MarkCleanerPaidDialog
-                            cleanerId={cleaner.id}
-                            month={month}
-                            year={year}
-                            defaultAmount={cleaner.monthlySalary.toString()}
-                          />
-                        )}
+                          }
+                        />
                         <CleanerDialog
                           cleaner={{
                             id: cleaner.id,
