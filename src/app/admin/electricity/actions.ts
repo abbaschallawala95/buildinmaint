@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireRole } from "@/lib/auth";
+import { requireAdminContext } from "@/lib/building-context";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
 
@@ -15,7 +15,7 @@ const billSchema = z.object({
 });
 
 export async function createBill(formData: FormData) {
-  const admin = await requireRole("SUPER_ADMIN");
+  const { profile: admin, buildingId } = await requireAdminContext();
   const parsed = billSchema.parse({
     type: formData.get("type"),
     billingPeriodStart: formData.get("billingPeriodStart"),
@@ -26,6 +26,7 @@ export async function createBill(formData: FormData) {
 
   const bill = await prisma.electricityBill.create({
     data: {
+      buildingId,
       type: parsed.type,
       billingPeriodStart: new Date(parsed.billingPeriodStart),
       billingPeriodEnd: new Date(parsed.billingPeriodEnd),
@@ -37,14 +38,14 @@ export async function createBill(formData: FormData) {
   await logAudit(admin.id, "CREATE", "ElectricityBill", bill.id, {
     type: parsed.type,
     amount: parsed.amount,
-  });
+  }, buildingId);
 
   revalidatePath("/admin/electricity");
   revalidatePath("/admin");
 }
 
 export async function updateBill(formData: FormData) {
-  const actor = await requireRole("SUPER_ADMIN");
+  const { profile: actor, buildingId } = await requireAdminContext();
   const id = z.string().uuid().parse(formData.get("id"));
   const parsed = billSchema.parse({
     type: formData.get("type"),
@@ -53,6 +54,8 @@ export async function updateBill(formData: FormData) {
     amount: formData.get("amount"),
     dueDate: formData.get("dueDate"),
   });
+  const bill = await prisma.electricityBill.findFirst({ where: { id, buildingId } });
+  if (!bill) throw new Error("Bill not found");
 
   await prisma.electricityBill.update({
     where: { id },
@@ -67,16 +70,18 @@ export async function updateBill(formData: FormData) {
   await logAudit(actor.id, "UPDATE", "ElectricityBill", id, {
     type: parsed.type,
     amount: parsed.amount,
-  });
+  }, buildingId);
 
   revalidatePath("/admin/electricity");
   revalidatePath("/admin");
 }
 
 export async function deleteBill(id: string) {
-  const actor = await requireRole("SUPER_ADMIN");
+  const { profile: actor, buildingId } = await requireAdminContext();
+  const bill = await prisma.electricityBill.findFirst({ where: { id, buildingId } });
+  if (!bill) throw new Error("Bill not found");
   await prisma.electricityBill.delete({ where: { id } });
-  await logAudit(actor.id, "DELETE", "ElectricityBill", id);
+  await logAudit(actor.id, "DELETE", "ElectricityBill", id, undefined, buildingId);
   revalidatePath("/admin/electricity");
   revalidatePath("/admin");
 }
@@ -87,29 +92,33 @@ const markPaidSchema = z.object({
 });
 
 export async function markBillPaid(formData: FormData) {
-  const actor = await requireRole("SUPER_ADMIN");
+  const { profile: actor, buildingId } = await requireAdminContext();
   const parsed = markPaidSchema.parse({
     id: formData.get("id"),
     paymentDate: formData.get("paymentDate"),
   });
+  const bill = await prisma.electricityBill.findFirst({ where: { id: parsed.id, buildingId } });
+  if (!bill) throw new Error("Bill not found");
 
   await prisma.electricityBill.update({
     where: { id: parsed.id },
     data: { status: "PAID", paymentDate: new Date(parsed.paymentDate) },
   });
-  await logAudit(actor.id, "MARK_PAID", "ElectricityBill", parsed.id);
+  await logAudit(actor.id, "MARK_PAID", "ElectricityBill", parsed.id, undefined, buildingId);
 
   revalidatePath("/admin/electricity");
   revalidatePath("/admin");
 }
 
 export async function markBillUnpaid(id: string) {
-  const actor = await requireRole("SUPER_ADMIN");
+  const { profile: actor, buildingId } = await requireAdminContext();
+  const bill = await prisma.electricityBill.findFirst({ where: { id, buildingId } });
+  if (!bill) throw new Error("Bill not found");
   await prisma.electricityBill.update({
     where: { id },
     data: { status: "UNPAID", paymentDate: null },
   });
-  await logAudit(actor.id, "MARK_UNPAID", "ElectricityBill", id);
+  await logAudit(actor.id, "MARK_UNPAID", "ElectricityBill", id, undefined, buildingId);
   revalidatePath("/admin/electricity");
   revalidatePath("/admin");
 }

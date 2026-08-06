@@ -11,7 +11,7 @@ export type Transaction = {
   kind: "income" | "expense";
 };
 
-export async function getFinancialOverview(period?: { month: number; year: number }) {
+export async function getFinancialOverview(buildingId: string, period?: { month: number; year: number }) {
   const [
     settings,
     paidPayments,
@@ -22,24 +22,27 @@ export async function getFinancialOverview(period?: { month: number; year: numbe
     unpaidCharges,
     overdueBills,
   ] = await Promise.all([
-    getSettings(),
+    getSettings(buildingId),
     prisma.maintenancePayment.findMany({
-      where: { status: "PAID" },
+      where: { status: "PAID", flat: { floor: { buildingId } } },
       include: { flat: { include: { floor: true } } },
     }),
     prisma.additionalCharge.findMany({
-      where: { status: "PAID" },
+      where: { status: "PAID", flat: { floor: { buildingId } } },
       include: { flat: { include: { floor: true } } },
     }),
-    prisma.expense.findMany({ include: { category: true } }),
-    prisma.electricityBill.findMany({ where: { status: "PAID" } }),
-    prisma.cleanerPaymentEntry.findMany({ include: { cleanerPayment: { include: { cleaner: true } } } }),
+    prisma.expense.findMany({ where: { buildingId }, include: { category: true } }),
+    prisma.electricityBill.findMany({ where: { status: "PAID", buildingId } }),
+    prisma.cleanerPaymentEntry.findMany({
+      where: { cleanerPayment: { cleaner: { buildingId } } },
+      include: { cleanerPayment: { include: { cleaner: true } } },
+    }),
     prisma.additionalCharge.findMany({
-      where: { status: "UNPAID" },
+      where: { status: "UNPAID", flat: { floor: { buildingId } } },
       include: { flat: { include: { floor: true } } },
     }),
     prisma.electricityBill.findMany({
-      where: { status: "UNPAID", dueDate: { lt: new Date() } },
+      where: { status: "UNPAID", dueDate: { lt: new Date() }, buildingId },
     }),
   ]);
 
@@ -59,6 +62,7 @@ export async function getFinancialOverview(period?: { month: number; year: numbe
   const month = period?.month ?? now.getMonth() + 1;
   const year = period?.year ?? now.getFullYear();
   const flatsUnpaidThisMonth = await prisma.flat.findMany({
+    where: { floor: { buildingId } },
     include: { payments: { where: { month, year } }, maintenanceRates: true, floor: true },
   });
   const pendingMaintenanceThisMonth = flatsUnpaidThisMonth

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireRole } from "@/lib/auth";
+import { requireAdminContext } from "@/lib/building-context";
 import { prisma } from "@/lib/prisma";
 import { getFinancialOverview } from "@/lib/finance";
 import { rateForMonth } from "@/lib/rate-history";
@@ -12,8 +12,9 @@ const MONTH_NAMES = [
 ];
 
 export async function GET(req: NextRequest) {
+  let buildingId: string;
   try {
-    await requireRole("SUPER_ADMIN");
+    ({ buildingId } = await requireAdminContext());
   } catch {
     return new Response("Forbidden", { status: 403 });
   }
@@ -25,8 +26,9 @@ export async function GET(req: NextRequest) {
   const year = Number(searchParams.get("year")) || now.getFullYear();
 
   const [overview, flats] = await Promise.all([
-    getFinancialOverview({ month, year }),
+    getFinancialOverview(buildingId, { month, year }),
     prisma.flat.findMany({
+      where: { floor: { buildingId } },
       orderBy: [{ floor: { sortOrder: "asc" } }, { flatNumber: "asc" }],
       include: { floor: true, member: true, payments: { where: { month, year } }, maintenanceRates: true },
     }),

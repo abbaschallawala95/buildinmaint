@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requireAdminContext } from "@/lib/building-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { createBulkCharge } from "./actions";
 
 export default async function AdditionalIncomePage() {
+  const { buildingId } = await requireAdminContext();
   const flats = await prisma.flat.findMany({
+    where: { floor: { buildingId } },
     orderBy: [{ floor: { sortOrder: "asc" } }, { flatNumber: "asc" }],
     include: { floor: true, member: true },
   });

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireRole } from "@/lib/auth";
+import { requireAdminContext } from "@/lib/building-context";
 import { prisma } from "@/lib/prisma";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
@@ -15,7 +15,7 @@ const createSchema = z.object({
 });
 
 export async function createMember(_prev: { error?: string }, formData: FormData) {
-  const actor = await requireRole("SUPER_ADMIN");
+  const { profile: actor, buildingId } = await requireAdminContext();
 
   const parsed = createSchema.safeParse({
     name: formData.get("name"),
@@ -40,9 +40,10 @@ export async function createMember(_prev: { error?: string }, formData: FormData
       email: parsed.data.email,
       phone: parsed.data.phone,
       role: "MEMBER",
+      buildingId,
     },
   });
-  await logAudit(actor.id, "CREATE", "Profile", profile.id, { name: profile.name, email: profile.email });
+  await logAudit(actor.id, "CREATE", "Profile", profile.id, { name: profile.name, email: profile.email }, buildingId);
 
   revalidatePath("/admin/users");
   return { error: undefined };
@@ -57,7 +58,7 @@ const updateSchema = z.object({
 });
 
 export async function updateMember(_prev: { error?: string }, formData: FormData) {
-  const actor = await requireRole("SUPER_ADMIN");
+  const { profile: actor, buildingId } = await requireAdminContext();
 
   const parsed = updateSchema.safeParse({
     id: formData.get("id"),
@@ -68,8 +69,16 @@ export async function updateMember(_prev: { error?: string }, formData: FormData
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
-  const profile = await prisma.profile.findUnique({ where: { id: parsed.data.id }, include: { flat: true } });
+  const profile = await prisma.profile.findFirst({
+    where: { id: parsed.data.id, buildingId },
+    include: { flat: true },
+  });
   if (!profile) return { error: "Member not found" };
+
+  if (parsed.data.flatId) {
+    const flat = await prisma.flat.findFirst({ where: { id: parsed.data.flatId, floor: { buildingId } } });
+    if (!flat) return { error: "Flat not found" };
+  }
 
   if (parsed.data.email !== profile.email) {
     const admin = createAdminClient();
@@ -100,7 +109,7 @@ export async function updateMember(_prev: { error?: string }, formData: FormData
     return { error: "That flat is already assigned to another member." };
   }
 
-  await logAudit(actor.id, "UPDATE", "Profile", parsed.data.id, { name: parsed.data.name, email: parsed.data.email });
+  await logAudit(actor.id, "UPDATE", "Profile", parsed.data.id, { name: parsed.data.name, email: parsed.data.email }, buildingId);
 
   revalidatePath("/admin/users");
   revalidatePath("/admin/floors");
@@ -108,16 +117,18 @@ export async function updateMember(_prev: { error?: string }, formData: FormData
 }
 
 export async function setMemberActive(id: string, isActive: boolean) {
-  const actor = await requireRole("SUPER_ADMIN");
+  const { profile: actor, buildingId } = await requireAdminContext();
+  const member = await prisma.profile.findFirst({ where: { id, buildingId } });
+  if (!member) throw new Error("Member not found");
   await prisma.profile.update({ where: { id }, data: { isActive } });
-  await logAudit(actor.id, isActive ? "ACTIVATE" : "DEACTIVATE", "Profile", id);
+  await logAudit(actor.id, isActive ? "ACTIVATE" : "DEACTIVATE", "Profile", id, undefined, buildingId);
   revalidatePath("/admin/users");
 }
 
 export async function deleteMember(id: string) {
-  const actor = await requireRole("SUPER_ADMIN");
+  const { profile: actor, buildingId } = await requireAdminContext();
 
-  const profile = await prisma.profile.findUnique({ where: { id } });
+  const profile = await prisma.profile.findFirst({ where: { id, buildingId } });
   if (!profile) return;
 
   const admin = createAdminClient();
@@ -126,7 +137,7 @@ export async function deleteMember(id: string) {
   });
 
   await prisma.profile.delete({ where: { id } });
-  await logAudit(actor.id, "DELETE", "Profile", id, { name: profile.name, email: profile.email });
+  await logAudit(actor.id, "DELETE", "Profile", id, { name: profile.name, email: profile.email }, buildingId);
   revalidatePath("/admin/users");
   revalidatePath("/admin/floors");
 }
@@ -137,7 +148,7 @@ const resetPasswordSchema = z.object({
 });
 
 export async function resetMemberPassword(_prev: { error?: string }, formData: FormData) {
-  const actor = await requireRole("SUPER_ADMIN");
+  const { profile: actor, buildingId } = await requireAdminContext();
 
   const parsed = resetPasswordSchema.safeParse({
     id: formData.get("id"),
@@ -145,7 +156,7 @@ export async function resetMemberPassword(_prev: { error?: string }, formData: F
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
-  const profile = await prisma.profile.findUnique({ where: { id: parsed.data.id } });
+  const profile = await prisma.profile.findFirst({ where: { id: parsed.data.id, buildingId } });
   if (!profile) return { error: "Member not found" };
 
   const admin = createAdminClient();
@@ -154,6 +165,6 @@ export async function resetMemberPassword(_prev: { error?: string }, formData: F
   });
   if (error) return { error: error.message };
 
-  await logAudit(actor.id, "RESET_PASSWORD", "Profile", profile.id);
+  await logAudit(actor.id, "RESET_PASSWORD", "Profile", profile.id, undefined, buildingId);
   return { error: undefined };
 }

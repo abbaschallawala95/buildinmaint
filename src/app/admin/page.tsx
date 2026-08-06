@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Wallet, AlertCircle, Building2, Layers, Users, PiggyBank, TrendingDown, Landmark } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { requireAdminContext } from "@/lib/building-context";
 import { getFinancialOverview } from "@/lib/finance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -19,17 +20,18 @@ export default async function AdminDashboardPage({
 }: {
   searchParams: Promise<{ month?: string; year?: string }>;
 }) {
+  const { buildingId } = await requireAdminContext();
   const params = await searchParams;
   const now = new Date();
   const isFiltered = Boolean(params.month || params.year);
   const month = Number(params.month) || now.getMonth() + 1;
   const year = Number(params.year) || now.getFullYear();
-  const overview = await getFinancialOverview(isFiltered ? { month, year } : undefined);
+  const overview = await getFinancialOverview(buildingId, isFiltered ? { month, year } : undefined);
 
   const [floorCount, flatCount, memberCount] = await Promise.all([
-    prisma.floor.count(),
-    prisma.flat.count(),
-    prisma.profile.count({ where: { role: "MEMBER" } }),
+    prisma.floor.count({ where: { buildingId } }),
+    prisma.flat.count({ where: { floor: { buildingId } } }),
+    prisma.profile.count({ where: { role: "MEMBER", buildingId } }),
   ]);
 
   const incomeLabel = isFiltered

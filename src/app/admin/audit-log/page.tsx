@@ -1,10 +1,13 @@
 import { prisma } from "@/lib/prisma";
+import { requireAdminContext } from "@/lib/building-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
 export default async function AuditLogPage() {
+  const { buildingId } = await requireAdminContext();
   const logs = await prisma.auditLog.findMany({
+    where: { buildingId },
     include: { actor: true },
     orderBy: { createdAt: "desc" },
     take: 200,

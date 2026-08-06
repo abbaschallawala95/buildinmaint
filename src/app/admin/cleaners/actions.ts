@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireRole } from "@/lib/auth";
+import { requireAdminContext } from "@/lib/building-context";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
 
@@ -12,7 +12,7 @@ const cleanerSchema = z.object({
 });
 
 export async function createCleaner(formData: FormData) {
-  const admin = await requireRole("SUPER_ADMIN");
+  const { profile: admin, buildingId } = await requireAdminContext();
   const parsed = cleanerSchema.parse({
     name: formData.get("name"),
     monthlySalary: formData.get("monthlySalary"),
@@ -22,12 +22,13 @@ export async function createCleaner(formData: FormData) {
   const cleaner = await prisma.cleaner.create({
     data: {
       ...parsed,
+      buildingId,
       salaryHistory: {
         create: { amount: parsed.monthlySalary, effectiveMonth: now.getMonth() + 1, effectiveYear: now.getFullYear() },
       },
     },
   });
-  await logAudit(admin.id, "CREATE", "Cleaner", cleaner.id, parsed);
+  await logAudit(admin.id, "CREATE", "Cleaner", cleaner.id, parsed, buildingId);
 
   revalidatePath("/admin/cleaners");
 }
@@ -35,12 +36,14 @@ export async function createCleaner(formData: FormData) {
 const updateCleanerSchema = cleanerSchema.extend({ id: z.string().uuid() });
 
 export async function updateCleaner(formData: FormData) {
-  const admin = await requireRole("SUPER_ADMIN");
+  const { profile: admin, buildingId } = await requireAdminContext();
   const parsed = updateCleanerSchema.parse({
     id: formData.get("id"),
     name: formData.get("name"),
     monthlySalary: formData.get("monthlySalary"),
   });
+  const cleaner = await prisma.cleaner.findFirst({ where: { id: parsed.id, buildingId } });
+  if (!cleaner) throw new Error("Cleaner not found");
 
   const now = new Date();
   const month = now.getMonth() + 1;
@@ -57,15 +60,17 @@ export async function updateCleaner(formData: FormData) {
       update: { amount: parsed.monthlySalary },
     }),
   ]);
-  await logAudit(admin.id, "UPDATE", "Cleaner", parsed.id, parsed);
+  await logAudit(admin.id, "UPDATE", "Cleaner", parsed.id, parsed, buildingId);
 
   revalidatePath("/admin/cleaners");
 }
 
 export async function deleteCleaner(id: string) {
-  const admin = await requireRole("SUPER_ADMIN");
+  const { profile: admin, buildingId } = await requireAdminContext();
+  const cleaner = await prisma.cleaner.findFirst({ where: { id, buildingId } });
+  if (!cleaner) throw new Error("Cleaner not found");
   await prisma.cleaner.delete({ where: { id } });
-  await logAudit(admin.id, "DELETE", "Cleaner", id);
+  await logAudit(admin.id, "DELETE", "Cleaner", id, undefined, buildingId);
 
   revalidatePath("/admin/cleaners");
   revalidatePath("/admin");
@@ -82,7 +87,7 @@ const addPaymentSchema = z.object({
 });
 
 export async function addCleanerPaymentEntry(formData: FormData) {
-  const admin = await requireRole("SUPER_ADMIN");
+  const { profile: admin, buildingId } = await requireAdminContext();
   const parsed = addPaymentSchema.parse({
     cleanerId: formData.get("cleanerId"),
     month: formData.get("month"),
@@ -92,6 +97,8 @@ export async function addCleanerPaymentEntry(formData: FormData) {
     paymentMethod: formData.get("paymentMethod"),
     notes: formData.get("notes") || undefined,
   });
+  const cleaner = await prisma.cleaner.findFirst({ where: { id: parsed.cleanerId, buildingId } });
+  if (!cleaner) throw new Error("Cleaner not found");
 
   const payment = await prisma.cleanerPayment.upsert({
     where: { cleanerId_month_year: { cleanerId: parsed.cleanerId, month: parsed.month, year: parsed.year } },
@@ -113,16 +120,20 @@ export async function addCleanerPaymentEntry(formData: FormData) {
     month: parsed.month,
     year: parsed.year,
     amount: parsed.amount,
-  });
+  }, buildingId);
 
   revalidatePath("/admin/cleaners");
   revalidatePath("/admin");
 }
 
 export async function deleteCleanerPaymentEntry(id: string) {
-  const admin = await requireRole("SUPER_ADMIN");
+  const { profile: admin, buildingId } = await requireAdminContext();
+  const entry = await prisma.cleanerPaymentEntry.findFirst({
+    where: { id, cleanerPayment: { cleaner: { buildingId } } },
+  });
+  if (!entry) throw new Error("Payment entry not found");
   await prisma.cleanerPaymentEntry.delete({ where: { id } });
-  await logAudit(admin.id, "DELETE", "CleanerPaymentEntry", id);
+  await logAudit(admin.id, "DELETE", "CleanerPaymentEntry", id, undefined, buildingId);
 
   revalidatePath("/admin/cleaners");
   revalidatePath("/admin");

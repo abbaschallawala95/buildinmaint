@@ -2,9 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireRole } from "@/lib/auth";
+import { requireAdminContext } from "@/lib/building-context";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
+
+async function requireFlatInBuilding(flatId: string, buildingId: string) {
+  const flat = await prisma.flat.findFirst({ where: { id: flatId, floor: { buildingId } } });
+  if (!flat) throw new Error("Flat not found");
+  return flat;
+}
 
 const markPaidSchema = z.object({
   flatId: z.string().uuid(),
@@ -17,7 +23,7 @@ const markPaidSchema = z.object({
 });
 
 export async function markPaymentPaid(formData: FormData) {
-  const admin = await requireRole("SUPER_ADMIN");
+  const { profile: admin, buildingId } = await requireAdminContext();
 
   const parsed = markPaidSchema.parse({
     flatId: formData.get("flatId"),
@@ -28,6 +34,7 @@ export async function markPaymentPaid(formData: FormData) {
     paymentMethod: formData.get("paymentMethod"),
     notes: formData.get("notes") || undefined,
   });
+  await requireFlatInBuilding(parsed.flatId, buildingId);
 
   const payment = await prisma.maintenancePayment.upsert({
     where: { flatId_month_year: { flatId: parsed.flatId, month: parsed.month, year: parsed.year } },
@@ -55,7 +62,7 @@ export async function markPaymentPaid(formData: FormData) {
     month: parsed.month,
     year: parsed.year,
     amount: parsed.amount,
-  });
+  }, buildingId);
 
   revalidatePath("/admin/payments");
   revalidatePath("/admin");
@@ -69,13 +76,14 @@ const chargeSchema = z.object({
 });
 
 export async function createCharge(formData: FormData) {
-  const admin = await requireRole("SUPER_ADMIN");
+  const { profile: admin, buildingId } = await requireAdminContext();
   const parsed = chargeSchema.parse({
     flatId: formData.get("flatId"),
     description: formData.get("description"),
     amount: formData.get("amount"),
     dueDate: formData.get("dueDate") || undefined,
   });
+  await requireFlatInBuilding(parsed.flatId, buildingId);
 
   const charge = await prisma.additionalCharge.create({
     data: {
@@ -89,7 +97,7 @@ export async function createCharge(formData: FormData) {
   await logAudit(admin.id, "CREATE", "AdditionalCharge", charge.id, {
     description: parsed.description,
     amount: parsed.amount,
-  });
+  }, buildingId);
 
   revalidatePath(`/admin/payments/${parsed.flatId}`);
   revalidatePath("/admin");
@@ -102,12 +110,13 @@ const previousDuesSchema = z.object({
 });
 
 export async function addPreviousYearDues(formData: FormData) {
-  const admin = await requireRole("SUPER_ADMIN");
+  const { profile: admin, buildingId } = await requireAdminContext();
   const parsed = previousDuesSchema.parse({
     flatId: formData.get("flatId"),
     year: formData.get("year"),
     amount: formData.get("amount"),
   });
+  await requireFlatInBuilding(parsed.flatId, buildingId);
 
   const charge = await prisma.additionalCharge.create({
     data: {
@@ -120,7 +129,7 @@ export async function addPreviousYearDues(formData: FormData) {
   await logAudit(admin.id, "ADD_PREVIOUS_YEAR_DUES", "AdditionalCharge", charge.id, {
     year: parsed.year,
     amount: parsed.amount,
-  });
+  }, buildingId);
 
   revalidatePath(`/admin/payments/${parsed.flatId}`);
   revalidatePath("/admin");
@@ -133,27 +142,35 @@ const markChargePaidSchema = z.object({
 });
 
 export async function markChargePaid(formData: FormData) {
-  const actor = await requireRole("SUPER_ADMIN");
+  const { profile: actor, buildingId } = await requireAdminContext();
   const parsed = markChargePaidSchema.parse({
     id: formData.get("id"),
     flatId: formData.get("flatId"),
     paymentDate: formData.get("paymentDate"),
   });
+  const charge = await prisma.additionalCharge.findFirst({
+    where: { id: parsed.id, flat: { floor: { buildingId } } },
+  });
+  if (!charge) throw new Error("Charge not found");
 
   await prisma.additionalCharge.update({
     where: { id: parsed.id },
     data: { status: "PAID", paymentDate: new Date(parsed.paymentDate) },
   });
-  await logAudit(actor.id, "MARK_PAID", "AdditionalCharge", parsed.id);
+  await logAudit(actor.id, "MARK_PAID", "AdditionalCharge", parsed.id, undefined, buildingId);
 
   revalidatePath(`/admin/payments/${parsed.flatId}`);
   revalidatePath("/admin");
 }
 
 export async function deleteCharge(id: string) {
-  const actor = await requireRole("SUPER_ADMIN");
-  const charge = await prisma.additionalCharge.delete({ where: { id } });
-  await logAudit(actor.id, "DELETE", "AdditionalCharge", id);
+  const { profile: actor, buildingId } = await requireAdminContext();
+  const charge = await prisma.additionalCharge.findFirst({
+    where: { id, flat: { floor: { buildingId } } },
+  });
+  if (!charge) throw new Error("Charge not found");
+  await prisma.additionalCharge.delete({ where: { id } });
+  await logAudit(actor.id, "DELETE", "AdditionalCharge", id, undefined, buildingId);
   revalidatePath(`/admin/payments/${charge.flatId}`);
   revalidatePath("/admin");
 }
@@ -165,13 +182,14 @@ const markUnpaidSchema = z.object({
 });
 
 export async function markPaymentUnpaid(formData: FormData) {
-  const actor = await requireRole("SUPER_ADMIN");
+  const { profile: actor, buildingId } = await requireAdminContext();
 
   const parsed = markUnpaidSchema.parse({
     flatId: formData.get("flatId"),
     month: formData.get("month"),
     year: formData.get("year"),
   });
+  await requireFlatInBuilding(parsed.flatId, buildingId);
 
   await prisma.maintenancePayment
     .delete({
@@ -183,7 +201,7 @@ export async function markPaymentUnpaid(formData: FormData) {
   await logAudit(actor.id, "MARK_UNPAID", "MaintenancePayment", parsed.flatId, {
     month: parsed.month,
     year: parsed.year,
-  });
+  }, buildingId);
 
   revalidatePath("/admin/payments");
   revalidatePath("/admin");

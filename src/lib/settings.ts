@@ -1,10 +1,10 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 
-// Settings is a singleton table — this returns the one row, creating it with
-// defaults on first access.
-export async function getSettings() {
-  const existing = await prisma.settings.findFirst();
+// Returns the settings row for a building, creating it with defaults on first access
+// (a building normally gets one at creation time via createBuilding, so this is a fallback).
+export async function getSettings(buildingId: string) {
+  const existing = await prisma.settings.findUnique({ where: { buildingId } });
   if (existing) return existing;
-  return prisma.settings.create({ data: {} });
+  return prisma.settings.create({ data: { buildingId } });
 }

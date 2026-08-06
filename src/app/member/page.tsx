@@ -1,5 +1,6 @@
 import { getCurrentProfile } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getSettings } from "@/lib/settings";
 import { getFinancialOverview } from "@/lib/finance";
 import { buildDueSchedule, totalDue } from "@/lib/maintenance-dues";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,8 +21,8 @@ export default async function MemberDashboardPage({
   const params = await searchParams;
   const profile = await getCurrentProfile();
 
-  const flat = await prisma.flat.findUnique({
-    where: { memberId: profile!.id },
+  const flat = await prisma.flat.findFirst({
+    where: { memberId: profile!.id, floor: { buildingId: profile!.buildingId ?? undefined } },
     include: {
       floor: true,
       payments: { orderBy: [{ year: "desc" }, { month: "desc" }] },
@@ -78,8 +79,11 @@ export default async function MemberDashboardPage({
   const yearSchedule = schedule.filter((s) => s.year === selectedYear);
   const yearDue = totalDue(yearSchedule);
 
-  const settings = await prisma.settings.findFirst();
-  const overview = settings?.allowMembersViewFinancials ? await getFinancialOverview() : null;
+  const settings = profile!.buildingId ? await getSettings(profile!.buildingId) : null;
+  const overview =
+    settings?.allowMembersViewFinancials && profile!.buildingId
+      ? await getFinancialOverview(profile!.buildingId)
+      : null;
 
   return (
     <div className="space-y-6">

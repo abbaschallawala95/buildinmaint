@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireAdminContext } from "@/lib/building-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -21,10 +22,11 @@ export default async function FlatPaymentHistoryPage({
 }: {
   params: Promise<{ flatId: string }>;
 }) {
+  const { buildingId } = await requireAdminContext();
   const { flatId } = await params;
 
-  const flat = await prisma.flat.findUnique({
-    where: { id: flatId },
+  const flat = await prisma.flat.findFirst({
+    where: { id: flatId, floor: { buildingId } },
     include: {
       floor: true,
       member: true,

@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Building2, LayoutDashboard, Users, Wallet, Receipt, Zap, Settings, History, Menu, X, Sparkles, PiggyBank, HandCoins, FileDown } from "lucide-react";
+import { LogOut, Building2, LayoutDashboard, Users, Wallet, Receipt, Zap, Settings, History, Menu, X, Sparkles, PiggyBank, HandCoins, FileDown, Landmark } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { logout } from "@/app/login/actions";
+import { selectBuilding } from "@/app/admin/buildings/actions";
 
 const NAV_BY_ROLE = {
   admin: [
@@ -31,20 +32,29 @@ export function NavShell({
   title,
   userName,
   showMonthlyData,
+  isSuperAdmin,
+  buildings,
+  selectedBuildingId,
   children,
 }: {
   role: keyof typeof NAV_BY_ROLE;
   title: string;
   userName: string;
   showMonthlyData?: boolean;
+  isSuperAdmin?: boolean;
+  buildings?: { id: string; name: string }[];
+  selectedBuildingId?: string;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const links: { href: string; label: string; icon: LucideIcon }[] =
     role === "member" && showMonthlyData
       ? [...NAV_BY_ROLE.member, { href: "/member/monthly-data", label: "Monthly Data", icon: PiggyBank }]
-      : [...NAV_BY_ROLE[role]];
+      : role === "admin" && isSuperAdmin
+        ? [...NAV_BY_ROLE.admin, { href: "/admin/buildings", label: "Buildings", icon: Landmark }]
+        : [...NAV_BY_ROLE[role]];
   const [open, setOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => setOpen(false), [pathname]);
 
@@ -79,6 +89,24 @@ export function NavShell({
             <X className="size-4" />
           </Button>
         </div>
+
+        {isSuperAdmin && buildings && buildings.length > 0 && (
+          <form ref={formRef} action={selectBuilding} className="px-3 pb-2">
+            <label className="px-1 text-xs text-sidebar-foreground/60">Building</label>
+            <select
+              name="buildingId"
+              defaultValue={selectedBuildingId}
+              onChange={() => formRef.current?.requestSubmit()}
+              className="mt-1 h-9 w-full rounded-md border border-sidebar-border bg-sidebar px-2 text-sm text-sidebar-foreground"
+            >
+              {buildings.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </form>
+        )}
 
         <nav className="flex-1 space-y-1 px-3 py-2">
           {links.map((l) => {

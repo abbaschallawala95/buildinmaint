@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requireAdminContext } from "@/lib/building-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -8,13 +9,16 @@ import { FlatDialog } from "./flat-dialog";
 import { deleteFloor, deleteFlat } from "./actions";
 
 export default async function FloorsPage() {
+  const { buildingId } = await requireAdminContext();
+
   const [floors, members] = await Promise.all([
     prisma.floor.findMany({
+      where: { buildingId },
       orderBy: { sortOrder: "asc" },
       include: { flats: { include: { member: true }, orderBy: { flatNumber: "asc" } } },
     }),
     prisma.profile.findMany({
-      where: { role: "MEMBER" },
+      where: { role: "MEMBER", buildingId },
       include: { flat: true },
       orderBy: { name: "asc" },
     }),

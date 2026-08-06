@@ -9,8 +9,9 @@ export function logAudit(
   entityType: string,
   entityId: string,
   details?: JsonDetails,
+  buildingId?: string | null,
 ) {
   return prisma.auditLog.create({
-    data: { actorId, action, entityType, entityId, details: details ?? undefined },
+    data: { actorId, action, entityType, entityId, details: details ?? undefined, buildingId },
   });
 }

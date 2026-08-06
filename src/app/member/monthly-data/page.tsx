@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getCurrentProfile } from "@/lib/auth";
 import { getFinancialOverview } from "@/lib/finance";
 import { getSettings } from "@/lib/settings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +17,10 @@ export default async function MemberMonthlyDataPage({
 }: {
   searchParams: Promise<{ month?: string; year?: string }>;
 }) {
-  const settings = await getSettings();
+  const profile = await getCurrentProfile();
+  if (!profile?.buildingId) redirect("/member");
+
+  const settings = await getSettings(profile.buildingId);
   if (!settings.allowMembersViewFinancials) redirect("/member");
 
   const params = await searchParams;
@@ -24,7 +28,7 @@ export default async function MemberMonthlyDataPage({
   const canBrowseAllMonths = settings.allowMembersViewAllMonths;
   const month = (canBrowseAllMonths && Number(params.month)) || now.getMonth() + 1;
   const year = (canBrowseAllMonths && Number(params.year)) || now.getFullYear();
-  const overview = await getFinancialOverview({ month, year });
+  const overview = await getFinancialOverview(profile.buildingId, { month, year });
 
   return (
     <div className="space-y-6">

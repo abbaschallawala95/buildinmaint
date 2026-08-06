@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requireAdminContext } from "@/lib/building-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +13,8 @@ import { deleteBill } from "./actions";
 const TYPE_LABEL = { LIFT: "Lift", COMMON_AREA: "Common Area" } as const;
 
 export default async function ElectricityPage() {
-  const bills = await prisma.electricityBill.findMany({ orderBy: { dueDate: "desc" } });
+  const { buildingId } = await requireAdminContext();
+  const bills = await prisma.electricityBill.findMany({ where: { buildingId }, orderBy: { dueDate: "desc" } });
 
   return (
     <div className="space-y-6">

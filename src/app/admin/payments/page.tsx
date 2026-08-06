@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { requireAdminContext } from "@/lib/building-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -19,12 +20,14 @@ export default async function PaymentsPage({
 }: {
   searchParams: Promise<{ month?: string; year?: string }>;
 }) {
+  const { buildingId } = await requireAdminContext();
   const params = await searchParams;
   const now = new Date();
   const month = Number(params.month) || now.getMonth() + 1;
   const year = Number(params.year) || now.getFullYear();
 
   const flats = await prisma.flat.findMany({
+    where: { floor: { buildingId } },
     orderBy: [{ floor: { sortOrder: "asc" } }, { flatNumber: "asc" }],
     include: {
       floor: true,

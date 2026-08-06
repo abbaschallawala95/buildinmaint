@@ -11,11 +11,11 @@ const DEFAULT_CATEGORIES = [
   "Miscellaneous",
 ];
 
-export async function ensureDefaultExpenseCategories() {
-  const count = await prisma.expenseCategory.count();
+export async function ensureDefaultExpenseCategories(buildingId: string) {
+  const count = await prisma.expenseCategory.count({ where: { buildingId } });
   if (count > 0) return;
   await prisma.expenseCategory.createMany({
-    data: DEFAULT_CATEGORIES.map((name) => ({ name })),
+    data: DEFAULT_CATEGORIES.map((name) => ({ name, buildingId })),
     skipDuplicates: true,
   });
 }

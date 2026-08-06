@@ -12,6 +12,7 @@ datasource db {
 
 enum Role {
   SUPER_ADMIN
+  BUILDING_ADMIN
   MEMBER
 }
 
@@ -33,6 +34,26 @@ enum ElectricityBillType {
   COMMON_AREA
 }
 
+// One row per building/society managed in this app. SUPER_ADMIN profiles have no
+// buildingId (buildingId null) and operate across all buildings via a selected-building
+// switcher; BUILDING_ADMIN and MEMBER profiles belong to exactly one building.
+model Building {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  profiles          Profile[]
+  floors            Floor[]
+  cleaners          Cleaner[]
+  expenseCategories ExpenseCategory[]
+  expenses          Expense[]
+  electricityBills  ElectricityBill[]
+  settings          Settings?
+  auditLogs         AuditLog[]
+
+  @@map("buildings")
+}
+
 // Mirrors a Supabase auth.users row; authUserId is that user's id.
 model Profile {
   id         String   @id @default(uuid())
@@ -42,8 +63,10 @@ model Profile {
   phone      String?
   role       Role     @default(MEMBER)
   isActive   Boolean  @default(true)
+  buildingId String?
   createdAt  DateTime @default(now())
 
+  building                Building?            @relation(fields: [buildingId], references: [id], onDelete: Restrict)
   flat                    Flat?                @relation("FlatMember")
   recordedPayments        MaintenancePayment[]   @relation("PaymentRecordedBy")
   recordedCharges         AdditionalCharge[]     @relation("ChargeRecordedBy")
@@ -56,11 +79,13 @@ model Profile {
 }
 
 model Floor {
-  id        String @id @default(uuid())
-  name      String
-  sortOrder Int    @default(0)
+  id         String @id @default(uuid())
+  buildingId String
+  name       String
+  sortOrder  Int    @default(0)
 
-  flats Flat[]
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  flats    Flat[]
 
   @@map("floors")
 }
@@ -136,16 +161,20 @@ model AdditionalCharge {
 }
 
 model ExpenseCategory {
-  id   String @id @default(uuid())
-  name String @unique
+  id         String @id @default(uuid())
+  buildingId String
+  name       String
 
+  building Building  @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   expenses Expense[]
 
+  @@unique([buildingId, name])
   @@map("expense_categories")
 }
 
 model Expense {
   id           String   @id @default(uuid())
+  buildingId   String
   categoryId   String
   description  String
   amount       Decimal  @db.Decimal(10, 2)
@@ -153,6 +182,7 @@ model Expense {
   recordedById String?
   createdAt    DateTime @default(now())
 
+  building   Building        @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   category   ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   recordedBy Profile?        @relation("ExpenseRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
 
@@ -161,6 +191,7 @@ model Expense {
 
 model ElectricityBill {
   id                 String              @id @default(uuid())
+  buildingId         String
   type               ElectricityBillType
   billingPeriodStart DateTime
   billingPeriodEnd   DateTime
@@ -171,6 +202,7 @@ model ElectricityBill {
   recordedById       String?
   createdAt          DateTime            @default(now())
 
+  building   Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   recordedBy Profile? @relation("BillRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
 
   @@map("electricity_bills")
@@ -178,10 +210,12 @@ model ElectricityBill {
 
 model Cleaner {
   id            String   @id @default(uuid())
+  buildingId    String
   name          String
   monthlySalary Decimal  @db.Decimal(10, 2) // current/latest rate; see CleanerSalaryHistory for per-month rate
   createdAt     DateTime @default(now())
 
+  building      Building               @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   payments      CleanerPayment[]
   salaryHistory CleanerSalaryHistory[]
 
@@ -236,19 +270,23 @@ model CleanerPaymentEntry {
   @@map("cleaner_payment_entries")
 }
 
-// Singleton row (one building per deployment).
+// One row per building (was a singleton row per deployment before multi-building support).
 model Settings {
   id                         String  @id @default(uuid())
+  buildingId                 String  @unique
   buildingName               String  @default("My Building")
   openingBalance             Decimal @default(0) @db.Decimal(12, 2)
   allowMembersViewFinancials Boolean @default(false)
-  allowMembersViewAllMonths Boolean @default(false)
+  allowMembersViewAllMonths  Boolean @default(false)
+
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
 
   @@map("settings")
 }
 
 model AuditLog {
   id         String   @id @default(uuid())
+  buildingId String?
   actorId    String?
   action     String
   entityType String
@@ -256,7 +294,8 @@ model AuditLog {
   details    Json?
   createdAt  DateTime @default(now())
 
-  actor Profile? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  building Building? @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  actor    Profile?  @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@map("audit_logs")
 }

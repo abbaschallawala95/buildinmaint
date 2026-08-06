@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireRole } from "@/lib/auth";
+import { requireAdminContext } from "@/lib/building-context";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
 
@@ -12,7 +12,7 @@ const bulkChargeSchema = z.object({
 });
 
 export async function createBulkCharge(formData: FormData) {
-  const admin = await requireRole("SUPER_ADMIN");
+  const { profile: admin, buildingId } = await requireAdminContext();
   const { description, dueDate } = bulkChargeSchema.parse({
     description: formData.get("description"),
     dueDate: formData.get("dueDate") || undefined,
@@ -25,6 +25,11 @@ export async function createBulkCharge(formData: FormData) {
   if (amounts.length === 0) {
     throw new Error("Enter an amount for at least one flat.");
   }
+
+  const flatCount = await prisma.flat.count({
+    where: { id: { in: amounts.map((a) => a.flatId) }, floor: { buildingId } },
+  });
+  if (flatCount !== amounts.length) throw new Error("One or more flats not found.");
 
   const charges = await prisma.$transaction(
     amounts.map(({ flatId, amount }) =>
@@ -42,7 +47,7 @@ export async function createBulkCharge(formData: FormData) {
   await logAudit(admin.id, "CREATE_BULK", "AdditionalCharge", charges[0].id, {
     description,
     flatCount: charges.length,
-  });
+  }, buildingId);
 
   revalidatePath("/admin/additional-income");
   revalidatePath("/admin/payments");

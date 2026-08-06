@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireRole } from "@/lib/auth";
+import { requireAdminContext } from "@/lib/building-context";
 import { prisma } from "@/lib/prisma";
 import { buildDueSchedule, totalDue } from "@/lib/maintenance-dues";
 import { buildExcelReport } from "@/lib/export/excel";
@@ -8,8 +8,9 @@ import { buildPdfReport } from "@/lib/export/pdf";
 const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export async function GET(req: NextRequest) {
+  let buildingId: string;
   try {
-    await requireRole("SUPER_ADMIN");
+    ({ buildingId } = await requireAdminContext());
   } catch {
     return new Response("Forbidden", { status: 403 });
   }
@@ -19,6 +20,7 @@ export async function GET(req: NextRequest) {
   const now = new Date();
 
   const flats = await prisma.flat.findMany({
+    where: { floor: { buildingId } },
     orderBy: [{ floor: { sortOrder: "asc" } }, { flatNumber: "asc" }],
     include: {
       floor: true,

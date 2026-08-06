@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireRole } from "@/lib/auth";
+import { requireAdminContext } from "@/lib/building-context";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
 
@@ -12,36 +12,40 @@ const floorSchema = z.object({
 });
 
 export async function createFloor(formData: FormData) {
-  const actor = await requireRole("SUPER_ADMIN");
+  const { profile: actor, buildingId } = await requireAdminContext();
   const parsed = floorSchema.parse({
     name: formData.get("name"),
     sortOrder: formData.get("sortOrder") || 0,
   });
-  const floor = await prisma.floor.create({ data: parsed });
-  await logAudit(actor.id, "CREATE", "Floor", floor.id, { name: floor.name });
+  const floor = await prisma.floor.create({ data: { ...parsed, buildingId } });
+  await logAudit(actor.id, "CREATE", "Floor", floor.id, { name: floor.name }, buildingId);
   revalidatePath("/admin/floors");
 }
 
 export async function updateFloor(formData: FormData) {
-  const actor = await requireRole("SUPER_ADMIN");
+  const { profile: actor, buildingId } = await requireAdminContext();
   const id = z.string().uuid().parse(formData.get("id"));
   const parsed = floorSchema.parse({
     name: formData.get("name"),
     sortOrder: formData.get("sortOrder") || 0,
   });
+  const floor = await prisma.floor.findFirst({ where: { id, buildingId } });
+  if (!floor) throw new Error("Floor not found");
   await prisma.floor.update({ where: { id }, data: parsed });
-  await logAudit(actor.id, "UPDATE", "Floor", id, { name: parsed.name });
+  await logAudit(actor.id, "UPDATE", "Floor", id, { name: parsed.name }, buildingId);
   revalidatePath("/admin/floors");
 }
 
 export async function deleteFloor(id: string) {
-  const actor = await requireRole("SUPER_ADMIN");
+  const { profile: actor, buildingId } = await requireAdminContext();
+  const floor = await prisma.floor.findFirst({ where: { id, buildingId } });
+  if (!floor) throw new Error("Floor not found");
   const flatCount = await prisma.flat.count({ where: { floorId: id } });
   if (flatCount > 0) {
     throw new Error("Remove all flats on this floor first.");
   }
   await prisma.floor.delete({ where: { id } });
-  await logAudit(actor.id, "DELETE", "Floor", id);
+  await logAudit(actor.id, "DELETE", "Floor", id, undefined, buildingId);
   revalidatePath("/admin/floors");
 }
 
@@ -53,13 +57,16 @@ const flatSchema = z.object({
 });
 
 export async function createFlat(formData: FormData) {
-  const actor = await requireRole("SUPER_ADMIN");
+  const { profile: actor, buildingId } = await requireAdminContext();
   const parsed = flatSchema.parse({
     floorId: formData.get("floorId"),
     flatNumber: formData.get("flatNumber"),
     monthlyMaintenanceAmount: formData.get("monthlyMaintenanceAmount"),
     memberId: formData.get("memberId") ?? "",
   });
+  const floor = await prisma.floor.findFirst({ where: { id: parsed.floorId, buildingId } });
+  if (!floor) throw new Error("Floor not found");
+
   const now = new Date();
   const flat = await prisma.flat.create({
     data: {
@@ -73,12 +80,12 @@ export async function createFlat(formData: FormData) {
       },
     },
   });
-  await logAudit(actor.id, "CREATE", "Flat", flat.id, { flatNumber: flat.flatNumber });
+  await logAudit(actor.id, "CREATE", "Flat", flat.id, { flatNumber: flat.flatNumber }, buildingId);
   revalidatePath("/admin/floors");
 }
 
 export async function updateFlat(formData: FormData) {
-  const actor = await requireRole("SUPER_ADMIN");
+  const { profile: actor, buildingId } = await requireAdminContext();
   const id = z.string().uuid().parse(formData.get("id"));
   const parsed = flatSchema.parse({
     floorId: formData.get("floorId"),
@@ -86,6 +93,11 @@ export async function updateFlat(formData: FormData) {
     monthlyMaintenanceAmount: formData.get("monthlyMaintenanceAmount"),
     memberId: formData.get("memberId") ?? "",
   });
+  const flat = await prisma.flat.findFirst({ where: { id, floor: { buildingId } } });
+  if (!flat) throw new Error("Flat not found");
+  const floor = await prisma.floor.findFirst({ where: { id: parsed.floorId, buildingId } });
+  if (!floor) throw new Error("Floor not found");
+
   const now = new Date();
   const month = now.getMonth() + 1;
   const year = now.getFullYear();
@@ -98,13 +110,15 @@ export async function updateFlat(formData: FormData) {
       update: { amount: parsed.monthlyMaintenanceAmount },
     }),
   ]);
-  await logAudit(actor.id, "UPDATE", "Flat", id, { flatNumber: parsed.flatNumber });
+  await logAudit(actor.id, "UPDATE", "Flat", id, { flatNumber: parsed.flatNumber }, buildingId);
   revalidatePath("/admin/floors");
 }
 
 export async function deleteFlat(id: string) {
-  const actor = await requireRole("SUPER_ADMIN");
+  const { profile: actor, buildingId } = await requireAdminContext();
+  const flat = await prisma.flat.findFirst({ where: { id, floor: { buildingId } } });
+  if (!flat) throw new Error("Flat not found");
   await prisma.flat.delete({ where: { id } });
-  await logAudit(actor.id, "DELETE", "Flat", id);
+  await logAudit(actor.id, "DELETE", "Flat", id, undefined, buildingId);
   revalidatePath("/admin/floors");
 }

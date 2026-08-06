@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requireAdminContext } from "@/lib/building-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -7,13 +8,16 @@ import { EditMemberDialog } from "./edit-member-dialog";
 import { MemberRowActions } from "./member-row-actions";
 
 export default async function UsersPage() {
+  const { buildingId } = await requireAdminContext();
+
   const [members, flats] = await Promise.all([
     prisma.profile.findMany({
-      where: { role: "MEMBER" },
+      where: { role: "MEMBER", buildingId },
       include: { flat: { include: { floor: true } } },
       orderBy: { createdAt: "asc" },
     }),
     prisma.flat.findMany({
+      where: { floor: { buildingId } },
       include: { floor: true },
       orderBy: [{ floor: { sortOrder: "asc" } }, { flatNumber: "asc" }],
     }),

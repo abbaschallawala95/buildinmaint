@@ -24,11 +24,12 @@ export async function requireRole(role: Role): Promise<Profile> {
 }
 
 // Use at the top of a server component page/layout to enforce role access with a redirect.
-export async function requireRoleOrRedirect(role: Role): Promise<Profile> {
+export async function requireRoleOrRedirect(role: Role | Role[]): Promise<Profile> {
+  const allowed = Array.isArray(role) ? role : [role];
   const profile = await getCurrentProfile();
   if (!profile || !profile.isActive) redirect("/login");
-  if (profile.role !== role) {
-    redirect(profile.role === "SUPER_ADMIN" ? "/admin" : "/member");
+  if (!allowed.includes(profile.role)) {
+    redirect(profile.role === "MEMBER" ? "/member" : "/admin");
   }
   return profile;
 }

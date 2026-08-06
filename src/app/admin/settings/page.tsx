@@ -1,4 +1,5 @@
 import { getSettings } from "@/lib/settings";
+import { requireAdminContext } from "@/lib/building-context";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +9,8 @@ import { updateSettings } from "./actions";
 import { DangerZone } from "./danger-zone";
 
 export default async function SettingsPage() {
-  const settings = await getSettings();
+  const { buildingId } = await requireAdminContext();
+  const settings = await getSettings(buildingId);
 
   return (
     <div className="space-y-6">

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requireAdminContext } from "@/lib/building-context";
 import { ensureDefaultExpenseCategories } from "@/lib/expense-categories";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,11 +10,12 @@ import { AddCategoryDialog } from "./add-category-dialog";
 import { deleteExpense } from "./actions";
 
 export default async function ExpensesPage() {
-  await ensureDefaultExpenseCategories();
+  const { buildingId } = await requireAdminContext();
+  await ensureDefaultExpenseCategories(buildingId);
 
   const [expenses, categories] = await Promise.all([
-    prisma.expense.findMany({ include: { category: true }, orderBy: { date: "desc" } }),
-    prisma.expenseCategory.findMany({ orderBy: { name: "asc" } }),
+    prisma.expense.findMany({ where: { buildingId }, include: { category: true }, orderBy: { date: "desc" } }),
+    prisma.expenseCategory.findMany({ where: { buildingId }, orderBy: { name: "asc" } }),
   ]);
 
   const totalThisYear = expenses
