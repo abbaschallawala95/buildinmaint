@@ -6,8 +6,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { AddChargeDialog } from "./add-charge-dialog";
+import { PreviousDuesDialog } from "./previous-dues-dialog";
 import { MarkChargePaidDialog } from "./mark-charge-paid-dialog";
 import { deleteCharge } from "../actions";
+import { buildDueSchedule, totalDue } from "@/lib/maintenance-dues";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -28,9 +30,30 @@ export default async function FlatPaymentHistoryPage({
       member: true,
       payments: { orderBy: [{ year: "desc" }, { month: "desc" }] },
       additionalCharges: { orderBy: { createdAt: "desc" } },
+      maintenanceRates: true,
     },
   });
   if (!flat) notFound();
+
+  const now = new Date();
+  const schedule = buildDueSchedule(
+    flat.maintenanceRates.map((r) => ({
+      amount: Number(r.amount),
+      effectiveMonth: r.effectiveMonth,
+      effectiveYear: r.effectiveYear,
+    })),
+    flat.payments.map((p) => ({
+      month: p.month,
+      year: p.year,
+      status: p.status,
+      amount: Number(p.amount),
+      paymentDate: p.paymentDate,
+      paymentMethod: p.paymentMethod,
+    })),
+    now.getMonth() + 1,
+    now.getFullYear(),
+  ).reverse();
+  const dueTotal = totalDue(schedule);
 
   return (
     <div className="space-y-6">
@@ -45,11 +68,12 @@ export default async function FlatPaymentHistoryPage({
           {flat.member ? flat.member.name : "Unassigned"} · ₹{flat.monthlyMaintenanceAmount.toString()}
           /month
         </p>
+        <p className="mt-1 text-lg font-semibold">Total Due: ₹{dueTotal.toFixed(2)}</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Payment History</CardTitle>
+          <CardTitle>Payment History (since {MONTH_NAMES[schedule[schedule.length - 1]?.month - 1] ?? ""} {schedule[schedule.length - 1]?.year ?? ""})</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
@@ -60,29 +84,27 @@ export default async function FlatPaymentHistoryPage({
                 <TableHead>Status</TableHead>
                 <TableHead>Payment Date</TableHead>
                 <TableHead>Method</TableHead>
-                <TableHead>Notes</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {flat.payments.length === 0 && (
+              {schedule.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    No payments recorded yet.
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    No maintenance rate set for this flat yet.
                   </TableCell>
                 </TableRow>
               )}
-              {flat.payments.map((p) => (
-                <TableRow key={p.id}>
+              {schedule.map((p) => (
+                <TableRow key={`${p.month}-${p.year}`}>
                   <TableCell>
                     {MONTH_NAMES[p.month - 1]} {p.year}
                   </TableCell>
-                  <TableCell>₹{p.amount.toString()}</TableCell>
+                  <TableCell>₹{p.amount.toFixed(2)}</TableCell>
                   <TableCell>
                     <Badge variant={p.status === "PAID" ? "default" : "secondary"}>{p.status}</Badge>
                   </TableCell>
                   <TableCell>{p.paymentDate ? p.paymentDate.toLocaleDateString() : "—"}</TableCell>
                   <TableCell>{p.paymentMethod ?? "—"}</TableCell>
-                  <TableCell>{p.notes ?? "—"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -93,7 +115,10 @@ export default async function FlatPaymentHistoryPage({
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Additional Charges & Other Dues</CardTitle>
-          <AddChargeDialog flatId={flat.id} />
+          <div className="flex gap-2">
+            <PreviousDuesDialog flatId={flat.id} />
+            <AddChargeDialog flatId={flat.id} />
+          </div>
         </CardHeader>
         <CardContent>
           <Table>

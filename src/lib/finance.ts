@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
+import { rateForMonth } from "@/lib/rate-history";
 
 export type Transaction = {
   id: string;
@@ -58,11 +59,24 @@ export async function getFinancialOverview(period?: { month: number; year: numbe
   const month = period?.month ?? now.getMonth() + 1;
   const year = period?.year ?? now.getFullYear();
   const flatsUnpaidThisMonth = await prisma.flat.findMany({
-    include: { payments: { where: { month, year } }, floor: true },
+    include: { payments: { where: { month, year } }, maintenanceRates: true, floor: true },
   });
   const pendingMaintenanceThisMonth = flatsUnpaidThisMonth
     .filter((f) => f.payments[0]?.status !== "PAID")
-    .reduce((sum, f) => sum + Number(f.monthlyMaintenanceAmount), 0);
+    .reduce(
+      (sum, f) =>
+        sum +
+        rateForMonth(
+          f.maintenanceRates.map((r) => ({
+            amount: Number(r.amount),
+            effectiveMonth: r.effectiveMonth,
+            effectiveYear: r.effectiveYear,
+          })),
+          month,
+          year,
+        ),
+      0,
+    );
   const pendingCharges = unpaidCharges.reduce((sum, c) => sum + Number(c.amount), 0);
   const outstandingDues = pendingMaintenanceThisMonth + pendingCharges;
 

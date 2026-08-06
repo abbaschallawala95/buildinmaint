@@ -1,5 +1,6 @@
-// Resolves the salary rate that was/is in effect for a given month, from a cleaner's rate-change history.
-export function salaryForMonth(
+// Resolves the rate that was/is in effect for a given month, from a rate-change history
+// (used for both cleaner salaries and flat maintenance amounts).
+export function rateForMonth(
   history: { amount: number; effectiveMonth: number; effectiveYear: number }[],
   month: number,
   year: number,

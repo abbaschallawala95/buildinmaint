@@ -8,7 +8,7 @@ import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { CleanerDialog } from "./cleaner-dialog";
 import { CleanerPaymentsDialog } from "./payments-dialog";
 import { deleteCleaner } from "./actions";
-import { salaryForMonth } from "@/lib/cleaner-salary";
+import { rateForMonth } from "@/lib/rate-history";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -89,7 +89,7 @@ export default async function CleanersPage({
                 </TableRow>
               )}
               {cleaners.map((cleaner) => {
-                const due = salaryForMonth(
+                const due = rateForMonth(
                   cleaner.salaryHistory.map((h) => ({
                     amount: Number(h.amount),
                     effectiveMonth: h.effectiveMonth,

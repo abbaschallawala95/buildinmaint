@@ -1,16 +1,23 @@
 import { getCurrentProfile } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getFinancialOverview } from "@/lib/finance";
+import { buildDueSchedule, totalDue } from "@/lib/maintenance-dues";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
 
-export default async function MemberDashboardPage() {
+export default async function MemberDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ year?: string }>;
+}) {
+  const params = await searchParams;
   const profile = await getCurrentProfile();
 
   const flat = await prisma.flat.findUnique({
@@ -19,6 +26,7 @@ export default async function MemberDashboardPage() {
       floor: true,
       payments: { orderBy: [{ year: "desc" }, { month: "desc" }] },
       additionalCharges: { orderBy: { createdAt: "desc" } },
+      maintenanceRates: true,
     },
   });
 
@@ -45,7 +53,30 @@ export default async function MemberDashboardPage() {
   const pendingCharges = flat.additionalCharges
     .filter((c) => c.status !== "PAID")
     .reduce((sum, c) => sum + Number(c.amount), 0);
-  const pendingAmount = (isCurrentPaid ? 0 : Number(flat.monthlyMaintenanceAmount)) + pendingCharges;
+
+  const schedule = buildDueSchedule(
+    flat.maintenanceRates.map((r) => ({
+      amount: Number(r.amount),
+      effectiveMonth: r.effectiveMonth,
+      effectiveYear: r.effectiveYear,
+    })),
+    flat.payments.map((p) => ({
+      month: p.month,
+      year: p.year,
+      status: p.status,
+      amount: Number(p.amount),
+      paymentDate: p.paymentDate,
+      paymentMethod: p.paymentMethod,
+    })),
+    now.getMonth() + 1,
+    now.getFullYear(),
+  ).reverse();
+  const pendingAmount = totalDue(schedule) + pendingCharges;
+
+  const years = [...new Set(schedule.map((s) => s.year))].sort((a, b) => b - a);
+  const selectedYear = Number(params.year) || now.getFullYear();
+  const yearSchedule = schedule.filter((s) => s.year === selectedYear);
+  const yearDue = totalDue(yearSchedule);
 
   const settings = await prisma.settings.findFirst();
   const overview = settings?.allowMembersViewFinancials ? await getFinancialOverview() : null;
@@ -77,7 +108,7 @@ export default async function MemberDashboardPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-normal text-muted-foreground">
-              Total Pending
+              Total Dues
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -99,8 +130,27 @@ export default async function MemberDashboardPage() {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Payment History</CardTitle>
+          <form method="get" className="flex items-end gap-2">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Year</label>
+              <select
+                name="year"
+                defaultValue={selectedYear}
+                className="h-9 rounded-md border bg-background px-3 text-sm"
+              >
+                {years.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button type="submit" variant="outline">
+              View
+            </Button>
+          </form>
         </CardHeader>
         <CardContent>
           <Table>
@@ -114,19 +164,19 @@ export default async function MemberDashboardPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {flat.payments.length === 0 && (
+              {yearSchedule.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    No payments recorded yet.
+                    No dues recorded for {selectedYear}.
                   </TableCell>
                 </TableRow>
               )}
-              {flat.payments.map((p) => (
-                <TableRow key={p.id}>
+              {yearSchedule.map((p) => (
+                <TableRow key={`${p.month}-${p.year}`}>
                   <TableCell>
                     {MONTH_NAMES[p.month - 1]} {p.year}
                   </TableCell>
-                  <TableCell>₹{p.amount.toString()}</TableCell>
+                  <TableCell>₹{p.amount.toFixed(2)}</TableCell>
                   <TableCell>
                     <Badge variant={p.status === "PAID" ? "default" : "secondary"}>{p.status}</Badge>
                   </TableCell>
@@ -135,6 +185,14 @@ export default async function MemberDashboardPage() {
                 </TableRow>
               ))}
             </TableBody>
+            {yearSchedule.length > 0 && (
+              <TableFooter>
+                <TableRow>
+                  <TableCell>Due in {selectedYear}</TableCell>
+                  <TableCell colSpan={4}>₹{yearDue.toFixed(2)}</TableCell>
+                </TableRow>
+              </TableFooter>
+            )}
           </Table>
         </CardContent>
       </Card>

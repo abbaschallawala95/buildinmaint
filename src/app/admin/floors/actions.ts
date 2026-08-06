@@ -60,7 +60,19 @@ export async function createFlat(formData: FormData) {
     monthlyMaintenanceAmount: formData.get("monthlyMaintenanceAmount"),
     memberId: formData.get("memberId") ?? "",
   });
-  const flat = await prisma.flat.create({ data: parsed });
+  const now = new Date();
+  const flat = await prisma.flat.create({
+    data: {
+      ...parsed,
+      maintenanceRates: {
+        create: {
+          amount: parsed.monthlyMaintenanceAmount,
+          effectiveMonth: now.getMonth() + 1,
+          effectiveYear: now.getFullYear(),
+        },
+      },
+    },
+  });
   await logAudit(actor.id, "CREATE", "Flat", flat.id, { flatNumber: flat.flatNumber });
   revalidatePath("/admin/floors");
 }
@@ -74,7 +86,18 @@ export async function updateFlat(formData: FormData) {
     monthlyMaintenanceAmount: formData.get("monthlyMaintenanceAmount"),
     memberId: formData.get("memberId") ?? "",
   });
-  await prisma.flat.update({ where: { id }, data: parsed });
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+
+  await prisma.$transaction([
+    prisma.flat.update({ where: { id }, data: parsed }),
+    prisma.flatMaintenanceRate.upsert({
+      where: { flatId_effectiveMonth_effectiveYear: { flatId: id, effectiveMonth: month, effectiveYear: year } },
+      create: { flatId: id, amount: parsed.monthlyMaintenanceAmount, effectiveMonth: month, effectiveYear: year },
+      update: { amount: parsed.monthlyMaintenanceAmount },
+    }),
+  ]);
   await logAudit(actor.id, "UPDATE", "Flat", id, { flatNumber: parsed.flatNumber });
   revalidatePath("/admin/floors");
 }

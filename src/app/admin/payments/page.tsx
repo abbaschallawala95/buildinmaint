@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MarkPaidDialog } from "./mark-paid-dialog";
 import { markPaymentUnpaid } from "./actions";
+import { rateForMonth } from "@/lib/rate-history";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -29,6 +30,7 @@ export default async function PaymentsPage({
       floor: true,
       member: true,
       payments: { where: { month, year } },
+      maintenanceRates: true,
     },
   });
 
@@ -90,6 +92,15 @@ export default async function PaymentsPage({
               {flats.map((flat) => {
                 const payment = flat.payments[0];
                 const isPaid = payment?.status === "PAID";
+                const rate = rateForMonth(
+                  flat.maintenanceRates.map((r) => ({
+                    amount: Number(r.amount),
+                    effectiveMonth: r.effectiveMonth,
+                    effectiveYear: r.effectiveYear,
+                  })),
+                  month,
+                  year,
+                );
                 return (
                   <TableRow key={flat.id}>
                     <TableCell>
@@ -98,7 +109,7 @@ export default async function PaymentsPage({
                       </Link>
                     </TableCell>
                     <TableCell>{flat.member?.name ?? "Unassigned"}</TableCell>
-                    <TableCell>₹{flat.monthlyMaintenanceAmount.toString()}</TableCell>
+                    <TableCell>₹{rate.toFixed(2)}</TableCell>
                     <TableCell>
                       <Badge variant={isPaid ? "default" : "secondary"}>
                         {isPaid ? "Paid" : "Unpaid"}
@@ -122,7 +133,7 @@ export default async function PaymentsPage({
                           flatId={flat.id}
                           month={month}
                           year={year}
-                          defaultAmount={flat.monthlyMaintenanceAmount.toString()}
+                          defaultAmount={rate.toFixed(2)}
                         />
                       )}
                     </TableCell>

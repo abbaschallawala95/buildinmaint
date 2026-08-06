@@ -76,9 +76,25 @@ model Flat {
   member            Profile?             @relation("FlatMember", fields: [memberId], references: [id], onDelete: SetNull)
   payments          MaintenancePayment[]
   additionalCharges AdditionalCharge[]
+  maintenanceRates  FlatMaintenanceRate[]
 
   @@unique([floorId, flatNumber])
   @@map("flats")
+}
+
+// One row per (flat, month) the maintenance rate changed, effective from that month onward.
+model FlatMaintenanceRate {
+  id             String   @id @default(uuid())
+  flatId         String
+  amount         Decimal  @db.Decimal(10, 2)
+  effectiveMonth Int // 1-12
+  effectiveYear  Int
+  createdAt      DateTime @default(now())
+
+  flat Flat @relation(fields: [flatId], references: [id], onDelete: Cascade)
+
+  @@unique([flatId, effectiveMonth, effectiveYear])
+  @@map("flat_maintenance_rates")
 }
 
 model MaintenancePayment {
@@ -226,6 +242,7 @@ model Settings {
   buildingName               String  @default("My Building")
   openingBalance             Decimal @default(0) @db.Decimal(12, 2)
   allowMembersViewFinancials Boolean @default(false)
+  allowMembersViewAllMonths Boolean @default(false)
 
   @@map("settings")
 }

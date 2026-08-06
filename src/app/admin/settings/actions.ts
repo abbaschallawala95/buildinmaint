@@ -12,6 +12,7 @@ const schema = z.object({
   buildingName: z.string().min(1),
   openingBalance: z.coerce.number(),
   allowMembersViewFinancials: z.coerce.boolean(),
+  allowMembersViewAllMonths: z.coerce.boolean(),
 });
 
 export async function updateSettings(formData: FormData) {
@@ -21,6 +22,7 @@ export async function updateSettings(formData: FormData) {
     buildingName: formData.get("buildingName"),
     openingBalance: formData.get("openingBalance"),
     allowMembersViewFinancials: formData.get("allowMembersViewFinancials") === "on",
+    allowMembersViewAllMonths: formData.get("allowMembersViewAllMonths") === "on",
   });
 
   const settings = await getSettings();

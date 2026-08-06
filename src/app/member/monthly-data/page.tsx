@@ -3,18 +3,28 @@ import { getFinancialOverview } from "@/lib/finance";
 import { getSettings } from "@/lib/settings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
 
-export default async function MemberMonthlyDataPage() {
+export default async function MemberMonthlyDataPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string; year?: string }>;
+}) {
   const settings = await getSettings();
   if (!settings.allowMembersViewFinancials) redirect("/member");
 
+  const params = await searchParams;
   const now = new Date();
-  const overview = await getFinancialOverview();
+  const canBrowseAllMonths = settings.allowMembersViewAllMonths;
+  const month = (canBrowseAllMonths && Number(params.month)) || now.getMonth() + 1;
+  const year = (canBrowseAllMonths && Number(params.year)) || now.getFullYear();
+  const overview = await getFinancialOverview({ month, year });
 
   return (
     <div className="space-y-6">
@@ -26,10 +36,35 @@ export default async function MemberMonthlyDataPage() {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>
-            {MONTH_NAMES[now.getMonth()]} {now.getFullYear()}
+            {MONTH_NAMES[month - 1]} {year}
           </CardTitle>
+          {canBrowseAllMonths && (
+            <form method="get" className="flex items-end gap-2">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Month</label>
+                <select
+                  name="month"
+                  defaultValue={month}
+                  className="h-9 rounded-md border bg-background px-3 text-sm"
+                >
+                  {MONTH_NAMES.map((m, i) => (
+                    <option key={m} value={i + 1}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Year</label>
+                <Input name="year" type="number" defaultValue={year} className="w-24" />
+              </div>
+              <Button type="submit" variant="outline">
+                View
+              </Button>
+            </form>
+          )}
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-2">
