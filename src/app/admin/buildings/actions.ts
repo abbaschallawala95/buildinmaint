@@ -139,6 +139,7 @@ export async function createBuildingAdmin(_prev: { error?: string }, formData: F
       phone: parsed.data.phone,
       role: "BUILDING_ADMIN",
       buildingId: parsed.data.buildingId,
+      mustChangePassword: true,
     },
   });
   await logAudit(actor.id, "CREATE", "Profile", profile.id, {
@@ -216,6 +217,7 @@ export async function resetBuildingAdminPassword(_prev: { error?: string }, form
   });
   if (error) return { error: error.message };
 
+  await prisma.profile.update({ where: { id: profile.id }, data: { mustChangePassword: true } });
   await logAudit(actor.id, "RESET_PASSWORD", "Profile", profile.id);
   return { error: undefined };
 }

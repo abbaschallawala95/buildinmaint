@@ -41,6 +41,7 @@ export async function createMember(_prev: { error?: string }, formData: FormData
       phone: parsed.data.phone,
       role: "MEMBER",
       buildingId,
+      mustChangePassword: true,
     },
   });
   await logAudit(actor.id, "CREATE", "Profile", profile.id, { name: profile.name, email: profile.email }, buildingId);
@@ -165,6 +166,7 @@ export async function resetMemberPassword(_prev: { error?: string }, formData: F
   });
   if (error) return { error: error.message };
 
+  await prisma.profile.update({ where: { id: profile.id }, data: { mustChangePassword: true } });
   await logAudit(actor.id, "RESET_PASSWORD", "Profile", profile.id, undefined, buildingId);
   return { error: undefined };
 }

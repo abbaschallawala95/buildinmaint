@@ -2,6 +2,7 @@ import { requireRoleOrRedirect } from "@/lib/auth";
 import { getAdminNavContext } from "@/lib/building-context";
 import { prisma } from "@/lib/prisma";
 import { NavShell } from "@/components/nav-shell";
+import { ForcePasswordChangeDialog } from "@/components/force-password-change-dialog";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   await requireRoleOrRedirect(["SUPER_ADMIN", "BUILDING_ADMIN"]);
@@ -12,6 +13,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     profile.role === "SUPER_ADMIN"
       ? await prisma.building.findMany({ orderBy: { name: "asc" } })
       : [];
+
+  if (profile.mustChangePassword) return <ForcePasswordChangeDialog />;
 
   return (
     <NavShell

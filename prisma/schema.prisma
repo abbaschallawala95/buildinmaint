@@ -64,6 +64,7 @@ model Profile {
   role       Role     @default(MEMBER)
   isActive   Boolean  @default(true)
   buildingId String?
+  mustChangePassword Boolean @default(false)
   createdAt  DateTime @default(now())
 
   building                Building?            @relation(fields: [buildingId], references: [id], onDelete: Restrict)

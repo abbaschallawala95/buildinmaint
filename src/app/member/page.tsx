@@ -89,7 +89,7 @@ export default async function MemberDashboardPage({
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">
-          {flat.floor.name} / {flat.flatNumber}
+          {flat.floor.name} / {flat.flatNumber} <span className="font-bold">— {profile!.name}</span>
         </h1>
         <p className="text-muted-foreground">
           Monthly Maintenance: ₹{flat.monthlyMaintenanceAmount.toString()}

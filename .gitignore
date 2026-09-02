@@ -44,3 +44,8 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# local AI assistant tooling (not part of the app)
+/.agents/
+/.claude/
+/.windsurf/
