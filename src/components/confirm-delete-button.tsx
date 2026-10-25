@@ -9,7 +9,7 @@ export function ConfirmDeleteButton({
   confirmMessage,
   label = "Delete",
 }: {
-  action: (id: string) => Promise<void>;
+  action: (id: string) => Promise<{ error?: string } | void>;
   id: string;
   confirmMessage: string;
   label?: string;
@@ -28,7 +28,8 @@ export function ConfirmDeleteButton({
           setError(undefined);
           startTransition(async () => {
             try {
-              await action(id);
+              const result = await action(id);
+              if (result?.error) setError(result.error);
             } catch (e) {
               setError(e instanceof Error ? e.message : "Failed to delete");
             }

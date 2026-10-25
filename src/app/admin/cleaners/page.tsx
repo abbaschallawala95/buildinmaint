@@ -1,3 +1,4 @@
+import { monthParam } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 import { requireAdminContext } from "@/lib/building-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,7 +25,7 @@ export default async function CleanersPage({
   const { buildingId } = await requireAdminContext();
   const params = await searchParams;
   const now = new Date();
-  const month = Number(params.month) || now.getMonth() + 1;
+  const month = monthParam(params.month);
   const year = Number(params.year) || now.getFullYear();
 
   const cleaners = await prisma.cleaner.findMany({
@@ -38,17 +39,17 @@ export default async function CleanersPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Cleaners</h1>
         <CleanerDialog trigger={<Button>Add Cleaner</Button>} />
       </div>
 
       <Card>
-        <CardHeader className="flex items-center justify-between">
+        <CardHeader className="flex flex-wrap items-center justify-between gap-3">
           <CardTitle>
             Salary — {MONTH_NAMES[month - 1]} {year}
           </CardTitle>
-          <form method="get" className="flex items-end gap-2">
+          <form method="get" className="flex flex-wrap items-end gap-2">
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Month</label>
               <select

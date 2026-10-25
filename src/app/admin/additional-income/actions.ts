@@ -11,25 +11,27 @@ const bulkChargeSchema = z.object({
   dueDate: z.string().optional(),
 });
 
-export async function createBulkCharge(formData: FormData) {
+export type BulkChargeState = { error?: string; ok?: string };
+
+export async function createBulkCharge(_prev: BulkChargeState, formData: FormData): Promise<BulkChargeState> {
   const { profile: admin, buildingId } = await requireAdminContext();
-  const { description, dueDate } = bulkChargeSchema.parse({
+  const parsed = bulkChargeSchema.safeParse({
     description: formData.get("description"),
     dueDate: formData.get("dueDate") || undefined,
   });
+  if (!parsed.success) return { error: "Enter a description." };
+  const { description, dueDate } = parsed.data;
 
   const amounts = [...formData.entries()]
     .filter(([key, value]) => key.startsWith("amount-") && Number(value) > 0)
     .map(([key, value]) => ({ flatId: key.slice("amount-".length), amount: Number(value) }));
 
-  if (amounts.length === 0) {
-    throw new Error("Enter an amount for at least one flat.");
-  }
+  if (amounts.length === 0) return { error: "Enter an amount for at least one flat." };
 
   const flatCount = await prisma.flat.count({
     where: { id: { in: amounts.map((a) => a.flatId) }, floor: { buildingId } },
   });
-  if (flatCount !== amounts.length) throw new Error("One or more flats not found.");
+  if (flatCount !== amounts.length) return { error: "One or more flats not found." };
 
   const charges = await prisma.$transaction(
     amounts.map(({ flatId, amount }) =>
@@ -52,4 +54,6 @@ export async function createBulkCharge(formData: FormData) {
   revalidatePath("/admin/additional-income");
   revalidatePath("/admin/payments");
   revalidatePath("/admin");
+  const total = amounts.reduce((sum, a) => sum + a.amount, 0);
+  return { ok: `Created "${description}" for ${charges.length} flat(s), ₹${total.toLocaleString("en-IN")} in total.` };
 }

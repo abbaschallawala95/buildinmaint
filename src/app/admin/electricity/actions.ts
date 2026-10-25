@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireAdminContext } from "@/lib/building-context";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
+import { withErrors } from "@/lib/action-result";
 
 const billSchema = z.object({
   type: z.enum(["LIFT", "COMMON_AREA"]),
@@ -14,7 +15,7 @@ const billSchema = z.object({
   dueDate: z.string().min(1),
 });
 
-export async function createBill(formData: FormData) {
+export const createBill = withErrors(async (formData: FormData) => {
   const { profile: admin, buildingId } = await requireAdminContext();
   const parsed = billSchema.parse({
     type: formData.get("type"),
@@ -42,9 +43,9 @@ export async function createBill(formData: FormData) {
 
   revalidatePath("/admin/electricity");
   revalidatePath("/admin");
-}
+});
 
-export async function updateBill(formData: FormData) {
+export const updateBill = withErrors(async (formData: FormData) => {
   const { profile: actor, buildingId } = await requireAdminContext();
   const id = z.string().uuid().parse(formData.get("id"));
   const parsed = billSchema.parse({
@@ -74,9 +75,9 @@ export async function updateBill(formData: FormData) {
 
   revalidatePath("/admin/electricity");
   revalidatePath("/admin");
-}
+});
 
-export async function deleteBill(id: string) {
+export const deleteBill = withErrors(async (id: string) => {
   const { profile: actor, buildingId } = await requireAdminContext();
   const bill = await prisma.electricityBill.findFirst({ where: { id, buildingId } });
   if (!bill) throw new Error("Bill not found");
@@ -84,14 +85,14 @@ export async function deleteBill(id: string) {
   await logAudit(actor.id, "DELETE", "ElectricityBill", id, undefined, buildingId);
   revalidatePath("/admin/electricity");
   revalidatePath("/admin");
-}
+});
 
 const markPaidSchema = z.object({
   id: z.string().uuid(),
   paymentDate: z.string().min(1),
 });
 
-export async function markBillPaid(formData: FormData) {
+export const markBillPaid = withErrors(async (formData: FormData) => {
   const { profile: actor, buildingId } = await requireAdminContext();
   const parsed = markPaidSchema.parse({
     id: formData.get("id"),
@@ -108,9 +109,9 @@ export async function markBillPaid(formData: FormData) {
 
   revalidatePath("/admin/electricity");
   revalidatePath("/admin");
-}
+});
 
-export async function markBillUnpaid(id: string) {
+export const markBillUnpaid = withErrors(async (id: string) => {
   const { profile: actor, buildingId } = await requireAdminContext();
   const bill = await prisma.electricityBill.findFirst({ where: { id, buildingId } });
   if (!bill) throw new Error("Bill not found");
@@ -121,4 +122,4 @@ export async function markBillUnpaid(id: string) {
   await logAudit(actor.id, "MARK_UNPAID", "ElectricityBill", id, undefined, buildingId);
   revalidatePath("/admin/electricity");
   revalidatePath("/admin");
-}
+});

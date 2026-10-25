@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateBuildingAdmin, resetBuildingAdminPassword, removeBuildingAdmin } from "./actions";
+import { succeeded } from "@/lib/toast-result";
 
 type Admin = { id: string; name: string; email: string; phone: string | null };
 
@@ -109,7 +110,7 @@ export function AdminRowActions({ admin, buildingName }: { admin: Admin; buildin
             <input type="hidden" name="id" value={admin.id} />
             <div className="space-y-2">
               <Label htmlFor={`admin-password-${admin.id}`}>New Password</Label>
-              <Input id={`admin-password-${admin.id}`} name="password" type="text" minLength={6} required />
+              <Input id={`admin-password-${admin.id}`} name="password" type="text" minLength={8} required />
             </div>
             {resetError && <p className="text-sm text-destructive">{resetError}</p>}
             <Button type="submit" className="w-full">
@@ -133,9 +134,9 @@ export function AdminRowActions({ admin, buildingName }: { admin: Admin; buildin
             disabled={removing}
             onClick={async () => {
               setRemoving(true);
-              await removeBuildingAdmin(admin.id);
+              const ok = await succeeded(removeBuildingAdmin(admin.id));
               setRemoving(false);
-              setRemoveOpen(false);
+              if (ok) setRemoveOpen(false);
             }}
           >
             {removing ? "Removing…" : "Remove Admin"}

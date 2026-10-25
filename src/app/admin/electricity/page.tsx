@@ -18,7 +18,7 @@ export default async function ElectricityPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Electricity Bills</h1>
         <BillDialog trigger={<Button>Add Bill</Button>} />
       </div>
@@ -51,11 +51,11 @@ export default async function ElectricityPage() {
                 <TableRow key={b.id}>
                   <TableCell>{TYPE_LABEL[b.type]}</TableCell>
                   <TableCell>
-                    {b.billingPeriodStart.toLocaleDateString()} –{" "}
-                    {b.billingPeriodEnd.toLocaleDateString()}
+                    {b.billingPeriodStart.toLocaleDateString("en-IN")} –{" "}
+                    {b.billingPeriodEnd.toLocaleDateString("en-IN")}
                   </TableCell>
                   <TableCell>₹{b.amount.toString()}</TableCell>
-                  <TableCell>{b.dueDate.toLocaleDateString()}</TableCell>
+                  <TableCell>{b.dueDate.toLocaleDateString("en-IN")}</TableCell>
                   <TableCell>
                     <Badge variant={b.status === "PAID" ? "default" : "secondary"}>
                       {b.status === "PAID" ? "Paid" : "Unpaid"}

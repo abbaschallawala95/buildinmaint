@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createBuilding } from "./actions";
+import { succeeded } from "@/lib/toast-result";
 
 export function CreateBuildingDialog() {
   const [open, setOpen] = useState(false);
@@ -24,9 +25,10 @@ export function CreateBuildingDialog() {
           <DialogTitle>Add Building</DialogTitle>
         </DialogHeader>
         <form
-          action={async (formData) => {
-            await createBuilding(formData);
-            setOpen(false);
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            if (await succeeded(createBuilding(formData))) setOpen(false);
           }}
           className="space-y-4"
         >

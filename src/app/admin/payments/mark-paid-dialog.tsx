@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { markPaymentPaid } from "./actions";
+import { todayValue } from "@/lib/utils";
+import { succeeded } from "@/lib/toast-result";
 
 export function MarkPaidDialog({
   flatId,
@@ -42,9 +44,10 @@ export function MarkPaidDialog({
           <DialogTitle>Record Payment</DialogTitle>
         </DialogHeader>
         <form
-          action={async (formData) => {
-            await markPaymentPaid(formData);
-            setOpen(false);
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            if (await succeeded(markPaymentPaid(formData))) setOpen(false);
           }}
           className="space-y-4"
         >
@@ -70,13 +73,17 @@ export function MarkPaidDialog({
               id="paymentDate"
               name="paymentDate"
               type="date"
-              defaultValue={new Date().toISOString().slice(0, 10)}
+              defaultValue={todayValue()}
               required
             />
           </div>
           <div className="space-y-2">
             <Label>Payment Method</Label>
-            <Select value={method} onValueChange={(v) => v && setMethod(v)}>
+            <Select
+              items={{ CASH: "Cash", UPI: "UPI", BANK_TRANSFER: "Bank Transfer", CHEQUE: "Cheque", OTHER: "Other" }}
+              value={method}
+              onValueChange={(v) => v && setMethod(v)}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

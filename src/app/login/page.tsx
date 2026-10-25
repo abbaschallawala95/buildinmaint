@@ -22,7 +22,7 @@ export default function LoginPage() {
           <div className="mb-2 flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/30">
             <Building2 className="size-6" />
           </div>
-          <CardTitle className="text-xl">Building Maintenance</CardTitle>
+          <CardTitle className="text-xl">Build Maintain</CardTitle>
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent>

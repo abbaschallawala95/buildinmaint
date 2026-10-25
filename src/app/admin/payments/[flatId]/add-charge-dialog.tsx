@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createCharge } from "../actions";
+import { succeeded } from "@/lib/toast-result";
 
 export function AddChargeDialog({ flatId }: { flatId: string }) {
   const [open, setOpen] = useState(false);
@@ -24,9 +25,10 @@ export function AddChargeDialog({ flatId }: { flatId: string }) {
           <DialogTitle>Add Additional Charge</DialogTitle>
         </DialogHeader>
         <form
-          action={async (formData) => {
-            await createCharge(formData);
-            setOpen(false);
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            if (await succeeded(createCharge(formData))) setOpen(false);
           }}
           className="space-y-4"
         >

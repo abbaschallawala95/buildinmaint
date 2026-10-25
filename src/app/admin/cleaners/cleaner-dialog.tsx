@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createCleaner, updateCleaner } from "./actions";
+import { succeeded } from "@/lib/toast-result";
+import { currentMonthValue } from "@/lib/utils";
 
 export function CleanerDialog({
   cleaner,
@@ -30,10 +32,10 @@ export function CleanerDialog({
           <DialogTitle>{cleaner ? "Edit Cleaner" : "Add Cleaner"}</DialogTitle>
         </DialogHeader>
         <form
-          action={async (formData) => {
-            if (cleaner) await updateCleaner(formData);
-            else await createCleaner(formData);
-            setOpen(false);
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            if (await succeeded(cleaner ? updateCleaner(formData) : createCleaner(formData))) setOpen(false);
           }}
           className="space-y-4"
         >
@@ -53,6 +55,13 @@ export function CleanerDialog({
               defaultValue={cleaner?.monthlySalary}
               required
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="effectiveFrom">Salary Effective From</Label>
+            <Input id="effectiveFrom" name="effectiveFrom" type="month" defaultValue={currentMonthValue()} required />
+            <p className="text-xs text-muted-foreground">
+              Pick an earlier month to correct a past salary. Months before this keep their old amount.
+            </p>
           </div>
           <Button type="submit" className="w-full">
             Save

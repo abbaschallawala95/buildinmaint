@@ -136,7 +136,7 @@ export default async function MemberDashboardPage({
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Payment History</CardTitle>
-          <form method="get" className="flex items-end gap-2">
+          <form method="get" className="flex flex-wrap items-end gap-2">
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Year</label>
               <select
@@ -184,7 +184,7 @@ export default async function MemberDashboardPage({
                   <TableCell>
                     <Badge variant={p.status === "PAID" ? "default" : "secondary"}>{p.status}</Badge>
                   </TableCell>
-                  <TableCell>{p.paymentDate ? p.paymentDate.toLocaleDateString() : "—"}</TableCell>
+                  <TableCell>{p.paymentDate ? p.paymentDate.toLocaleDateString("en-IN") : "—"}</TableCell>
                   <TableCell>{p.paymentMethod ?? "—"}</TableCell>
                 </TableRow>
               ))}
@@ -221,7 +221,7 @@ export default async function MemberDashboardPage({
                   <TableRow key={c.id}>
                     <TableCell>{c.description}</TableCell>
                     <TableCell>₹{c.amount.toString()}</TableCell>
-                    <TableCell>{c.dueDate ? c.dueDate.toLocaleDateString() : "—"}</TableCell>
+                    <TableCell>{c.dueDate ? c.dueDate.toLocaleDateString("en-IN") : "—"}</TableCell>
                     <TableCell>
                       <Badge variant={c.status === "PAID" ? "default" : "secondary"}>
                         {c.status === "PAID" ? "Paid" : "Unpaid"}

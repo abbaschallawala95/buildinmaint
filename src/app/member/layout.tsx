@@ -11,7 +11,13 @@ export default async function MemberLayout({ children }: { children: React.React
   const settings = await getSettings(profile.buildingId);
 
   return (
-    <NavShell role="member" title="My Flat" userName={profile.name} showMonthlyData={settings.allowMembersViewFinancials}>
+    <NavShell
+      role="member"
+      title="My Flat"
+      userName={profile.name}
+      showMonthlyData={settings.allowMembersViewFinancials}
+      skin={settings.theme}
+    >
       {children}
     </NavShell>
   );

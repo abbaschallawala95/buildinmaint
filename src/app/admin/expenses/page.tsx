@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { ExpenseDialog } from "./expense-dialog";
-import { AddCategoryDialog } from "./add-category-dialog";
+import { CategoriesDialog } from "./categories-dialog";
 import { deleteExpense } from "./actions";
 
 export default async function ExpensesPage() {
@@ -15,7 +15,11 @@ export default async function ExpensesPage() {
 
   const [expenses, categories] = await Promise.all([
     prisma.expense.findMany({ where: { buildingId }, include: { category: true }, orderBy: { date: "desc" } }),
-    prisma.expenseCategory.findMany({ where: { buildingId }, orderBy: { name: "asc" } }),
+    prisma.expenseCategory.findMany({
+      where: { buildingId },
+      orderBy: { name: "asc" },
+      include: { _count: { select: { expenses: true } } },
+    }),
   ]);
 
   const totalThisYear = expenses
@@ -24,7 +28,7 @@ export default async function ExpensesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Expenses</h1>
           <p className="text-sm text-muted-foreground">
@@ -32,7 +36,9 @@ export default async function ExpensesPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <AddCategoryDialog />
+          <CategoriesDialog
+            categories={categories.map((c) => ({ id: c.id, name: c.name, expenseCount: c._count.expenses }))}
+          />
           <ExpenseDialog categories={categories} trigger={<Button>Add Expense</Button>} />
         </div>
       </div>
@@ -62,7 +68,7 @@ export default async function ExpensesPage() {
               )}
               {expenses.map((e) => (
                 <TableRow key={e.id}>
-                  <TableCell>{e.date.toLocaleDateString()}</TableCell>
+                  <TableCell>{e.date.toLocaleDateString("en-IN")}</TableCell>
                   <TableCell>{e.category.name}</TableCell>
                   <TableCell>{e.description}</TableCell>
                   <TableCell>₹{e.amount.toString()}</TableCell>

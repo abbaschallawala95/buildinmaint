@@ -80,6 +80,7 @@ export function EditMemberDialog({
           <div className="space-y-2">
             <Label>Assigned Flat</Label>
             <Select
+              items={{ none: "Unassigned", ...Object.fromEntries(flatOptions.map((f) => [f.id, f.label])) }}
               value={flatId || "none"}
               onValueChange={(v) => setFlatId(!v || v === "none" ? "" : v)}
             >

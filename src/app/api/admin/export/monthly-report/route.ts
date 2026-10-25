@@ -1,3 +1,4 @@
+import { monthParam } from "@/lib/utils";
 import { NextRequest } from "next/server";
 import { requireAdminContext } from "@/lib/building-context";
 import { prisma } from "@/lib/prisma";
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const format = searchParams.get("format") === "pdf" ? "pdf" : "excel";
   const now = new Date();
-  const month = Number(searchParams.get("month")) || now.getMonth() + 1;
+  const month = monthParam(searchParams.get("month"));
   const year = Number(searchParams.get("year")) || now.getFullYear();
 
   const [overview, flats] = await Promise.all([
@@ -56,7 +57,7 @@ export async function GET(req: NextRequest) {
   });
 
   const transactionRows = overview.monthTransactions.map((t) => [
-    t.date.toLocaleDateString(),
+    t.date.toLocaleDateString("en-IN"),
     t.description,
     t.kind === "income" ? "Income" : "Expense",
     t.amount.toFixed(2),

@@ -1,3 +1,4 @@
+import { monthParam } from "@/lib/utils";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireAdminContext } from "@/lib/building-context";
@@ -8,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MarkPaidDialog } from "./mark-paid-dialog";
 import { markPaymentUnpaid } from "./actions";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { rateForMonth } from "@/lib/rate-history";
 
 const MONTH_NAMES = [
@@ -23,7 +25,7 @@ export default async function PaymentsPage({
   const { buildingId } = await requireAdminContext();
   const params = await searchParams;
   const now = new Date();
-  const month = Number(params.month) || now.getMonth() + 1;
+  const month = monthParam(params.month);
   const year = Number(params.year) || now.getFullYear();
 
   const flats = await prisma.flat.findMany({
@@ -39,9 +41,9 @@ export default async function PaymentsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Maintenance Payments</h1>
-        <form method="get" className="flex items-end gap-2">
+        <form method="get" className="flex flex-wrap items-end gap-2">
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Month</label>
             <select
@@ -119,7 +121,7 @@ export default async function PaymentsPage({
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {payment?.paymentDate ? payment.paymentDate.toLocaleDateString() : "—"}
+                      {payment?.paymentDate ? payment.paymentDate.toLocaleDateString("en-IN") : "—"}
                     </TableCell>
                     <TableCell className="text-right">
                       {isPaid ? (
@@ -127,9 +129,13 @@ export default async function PaymentsPage({
                           <input type="hidden" name="flatId" value={flat.id} />
                           <input type="hidden" name="month" value={month} />
                           <input type="hidden" name="year" value={year} />
-                          <Button variant="outline" size="sm" type="submit">
+                          <ConfirmSubmitButton
+                            variant="outline"
+                            size="sm"
+                            confirmMessage={`Mark ${flat.floor.name} / ${flat.flatNumber} as unpaid? This deletes the recorded payment (₹${payment.amount.toString()}${payment.paymentMethod ? `, ${payment.paymentMethod}` : ""}).`}
+                          >
                             Mark Unpaid
-                          </Button>
+                          </ConfirmSubmitButton>
                         </form>
                       ) : (
                         <MarkPaidDialog

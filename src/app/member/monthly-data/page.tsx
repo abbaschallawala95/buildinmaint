@@ -1,3 +1,4 @@
+import { monthParam } from "@/lib/utils";
 import { redirect } from "next/navigation";
 import { getCurrentProfile } from "@/lib/auth";
 import { getFinancialOverview } from "@/lib/finance";
@@ -26,7 +27,7 @@ export default async function MemberMonthlyDataPage({
   const params = await searchParams;
   const now = new Date();
   const canBrowseAllMonths = settings.allowMembersViewAllMonths;
-  const month = (canBrowseAllMonths && Number(params.month)) || now.getMonth() + 1;
+  const month = monthParam(canBrowseAllMonths ? params.month : undefined);
   const year = (canBrowseAllMonths && Number(params.year)) || now.getFullYear();
   const overview = await getFinancialOverview(profile.buildingId, { month, year });
 
@@ -45,7 +46,7 @@ export default async function MemberMonthlyDataPage({
             {MONTH_NAMES[month - 1]} {year}
           </CardTitle>
           {canBrowseAllMonths && (
-            <form method="get" className="flex items-end gap-2">
+            <form method="get" className="flex flex-wrap items-end gap-2">
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">Month</label>
                 <select
@@ -133,7 +134,7 @@ export default async function MemberMonthlyDataPage({
               )}
               {overview.monthTransactions.map((t) => (
                 <TableRow key={t.id}>
-                  <TableCell>{t.date.toLocaleDateString()}</TableCell>
+                  <TableCell>{t.date.toLocaleDateString("en-IN")}</TableCell>
                   <TableCell>{t.description}</TableCell>
                   <TableCell
                     className={`text-right ${t.kind === "income" ? "text-emerald-600" : "text-rose-600"}`}

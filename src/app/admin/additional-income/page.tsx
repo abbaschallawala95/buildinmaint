@@ -2,10 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { requireAdminContext } from "@/lib/building-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createBulkCharge } from "./actions";
+import { ChargeForm } from "./charge-form";
 
 export default async function AdditionalIncomePage() {
   const { buildingId } = await requireAdminContext();
@@ -27,7 +26,7 @@ export default async function AdditionalIncomePage() {
         </p>
       </div>
 
-      <form action={createBulkCharge} className="space-y-6">
+      <ChargeForm disabled={flats.length === 0}>
         <Card>
           <CardHeader>
             <CardTitle>Details</CardTitle>
@@ -91,11 +90,7 @@ export default async function AdditionalIncomePage() {
             </Table>
           </CardContent>
         </Card>
-
-        <Button type="submit" disabled={flats.length === 0}>
-          Create Charges
-        </Button>
-      </form>
+      </ChargeForm>
     </div>
   );
 }

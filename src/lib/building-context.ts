@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -6,6 +7,16 @@ import { getCurrentProfile } from "@/lib/auth";
 import type { Profile } from "@/generated/prisma/client";
 
 export const SELECTED_BUILDING_COOKIE = "selectedBuildingId";
+
+// The building the super admin's switcher is on (cookie), else the first building; null if
+// there are none. Cached so the layout and the page share one lookup per request.
+const superAdminBuildingId = cache(async (): Promise<string | null> => {
+  const store = await cookies();
+  const selected = store.get(SELECTED_BUILDING_COOKIE)?.value;
+  if (selected && (await prisma.building.findUnique({ where: { id: selected }, select: { id: true } }))) return selected;
+  const first = await prisma.building.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true } });
+  return first?.id ?? null;
+});
 
 // Use at the top of any /admin server component/page or server action. Works for both
 // roles that reach /admin: BUILDING_ADMIN is pinned to their own building; SUPER_ADMIN
@@ -22,16 +33,9 @@ export async function requireAdminContext(): Promise<{ profile: Profile; buildin
   }
 
   // SUPER_ADMIN
-  const store = await cookies();
-  const selected = store.get(SELECTED_BUILDING_COOKIE)?.value;
-  if (selected) {
-    const exists = await prisma.building.findUnique({ where: { id: selected } });
-    if (exists) return { profile, buildingId: selected };
-  }
-
-  const first = await prisma.building.findFirst({ orderBy: { createdAt: "asc" } });
-  if (!first) redirect("/admin/buildings");
-  return { profile, buildingId: first.id };
+  const buildingId = await superAdminBuildingId();
+  if (!buildingId) redirect("/admin/buildings");
+  return { profile, buildingId };
 }
 
 // Use at the top of a server component/action that only SUPER_ADMIN may access
@@ -55,12 +59,5 @@ export async function getAdminNavContext(): Promise<{ profile: Profile; building
     return { profile, buildingId: profile.buildingId };
   }
 
-  const store = await cookies();
-  const selected = store.get(SELECTED_BUILDING_COOKIE)?.value;
-  if (selected) {
-    const exists = await prisma.building.findUnique({ where: { id: selected } });
-    if (exists) return { profile, buildingId: selected };
-  }
-  const first = await prisma.building.findFirst({ orderBy: { createdAt: "asc" } });
-  return { profile, buildingId: first?.id ?? null };
+  return { profile, buildingId: await superAdminBuildingId() };
 }

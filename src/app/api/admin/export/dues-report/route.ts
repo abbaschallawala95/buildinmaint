@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { buildDueSchedule, totalDue } from "@/lib/maintenance-dues";
 import { buildExcelReport } from "@/lib/export/excel";
 import { buildPdfReport } from "@/lib/export/pdf";
+import { todayValue } from "@/lib/utils";
 
 const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -67,8 +68,8 @@ export async function GET(req: NextRequest) {
   });
   rows.push(["", "", "", "", "", "Grand Total (Rs.)", grandTotal.toFixed(2)]);
 
-  const title = `Total Dues Report - as of ${now.toLocaleDateString()}`;
-  const filename = `dues-report-${now.toISOString().slice(0, 10)}`;
+  const title = `Total Dues Report - as of ${now.toLocaleDateString("en-IN")}`;
+  const filename = `dues-report-${todayValue()}`;
   const section = {
     heading: "Dues by Flat",
     headers: [

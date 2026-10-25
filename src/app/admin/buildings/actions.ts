@@ -9,6 +9,7 @@ import { SELECTED_BUILDING_COOKIE } from "@/lib/building-context";
 import { prisma } from "@/lib/prisma";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
+import { withErrors } from "@/lib/action-result";
 
 export async function selectBuilding(formData: FormData) {
   await requireSuperAdmin();
@@ -19,6 +20,7 @@ export async function selectBuilding(formData: FormData) {
   const store = await cookies();
   store.set(SELECTED_BUILDING_COOKIE, buildingId, {
     httpOnly: true,
+    secure: process.env.NODE_ENV === "production", // HTTPS-only on the live site; localhost is plain HTTP
     sameSite: "lax",
     path: "/",
   });
@@ -27,7 +29,7 @@ export async function selectBuilding(formData: FormData) {
 
 const createBuildingSchema = z.object({ name: z.string().min(1) });
 
-export async function createBuilding(formData: FormData) {
+export const createBuilding = withErrors(async (formData: FormData) => {
   const actor = await requireSuperAdmin();
   const parsed = createBuildingSchema.parse({ name: formData.get("name") });
 
@@ -40,23 +42,28 @@ export async function createBuilding(formData: FormData) {
   await logAudit(actor.id, "CREATE", "Building", building.id, { name: parsed.name });
 
   revalidatePath("/admin/buildings");
-}
+});
 
 const updateBuildingSchema = z.object({ id: z.string().uuid(), name: z.string().min(1) });
 
-export async function updateBuilding(formData: FormData) {
+export const updateBuilding = withErrors(async (formData: FormData) => {
   const actor = await requireSuperAdmin();
   const parsed = updateBuildingSchema.parse({ id: formData.get("id"), name: formData.get("name") });
 
   await prisma.$transaction([
     prisma.building.update({ where: { id: parsed.id }, data: { name: parsed.name } }),
-    prisma.settings.update({ where: { buildingId: parsed.id }, data: { buildingName: parsed.name } }),
+    // upsert: older buildings may have no settings row yet
+    prisma.settings.upsert({
+      where: { buildingId: parsed.id },
+      update: { buildingName: parsed.name },
+      create: { buildingId: parsed.id, buildingName: parsed.name },
+    }),
   ]);
   await logAudit(actor.id, "UPDATE", "Building", parsed.id, { name: parsed.name });
 
   revalidatePath("/admin/buildings");
   revalidatePath("/admin");
-}
+});
 
 const deleteBuildingSchema = z.object({ id: z.string().uuid(), confirmName: z.string() });
 
@@ -103,7 +110,7 @@ const createAdminSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   phone: z.string().optional(),
-  password: z.string().min(6),
+  password: z.string().min(8, "Password must be at least 8 characters."),
 });
 
 export async function createBuildingAdmin(_prev: { error?: string }, formData: FormData) {
@@ -131,17 +138,25 @@ export async function createBuildingAdmin(_prev: { error?: string }, formData: F
   });
   if (error || !data.user) return { error: error?.message ?? "Could not create account" };
 
-  const profile = await prisma.profile.create({
-    data: {
-      authUserId: data.user.id,
-      name: parsed.data.name,
-      email: parsed.data.email,
-      phone: parsed.data.phone,
-      role: "BUILDING_ADMIN",
-      buildingId: parsed.data.buildingId,
-      mustChangePassword: true,
-    },
-  });
+  const profile = await prisma.profile
+    .create({
+      data: {
+        authUserId: data.user.id,
+        name: parsed.data.name,
+        email: parsed.data.email,
+        phone: parsed.data.phone,
+        role: "BUILDING_ADMIN",
+        buildingId: parsed.data.buildingId,
+        mustChangePassword: true,
+      },
+    })
+    .catch(async (e: { code?: string }) => {
+      // Don't leave a login with no profile behind — it would block this email forever.
+      await admin.auth.admin.deleteUser(data.user.id);
+      return e.code === "P2002" ? ("duplicate" as const) : null;
+    });
+  if (profile === "duplicate") return { error: "That email is already used by another account." };
+  if (!profile) return { error: "Could not save the admin. Please try again." };
   await logAudit(actor.id, "CREATE", "Profile", profile.id, {
     name: profile.name,
     email: profile.email,
@@ -174,8 +189,13 @@ export async function updateBuildingAdmin(_prev: { error?: string }, formData: F
   });
   if (!profile) return { error: "Admin not found" };
 
-  if (parsed.data.email !== profile.email) {
-    const admin = createAdminClient();
+  const emailChanged = parsed.data.email !== profile.email;
+  if (emailChanged && (await prisma.profile.findFirst({ where: { email: parsed.data.email } }))) {
+    return { error: "That email is already used by another account." };
+  }
+
+  const admin = createAdminClient();
+  if (emailChanged) {
     const { error } = await admin.auth.admin.updateUserById(profile.authUserId, {
       email: parsed.data.email,
       email_confirm: true,
@@ -183,10 +203,18 @@ export async function updateBuildingAdmin(_prev: { error?: string }, formData: F
     if (error) return { error: error.message };
   }
 
-  await prisma.profile.update({
-    where: { id: parsed.data.id },
-    data: { name: parsed.data.name, email: parsed.data.email, phone: parsed.data.phone },
-  });
+  try {
+    await prisma.profile.update({
+      where: { id: parsed.data.id },
+      data: { name: parsed.data.name, email: parsed.data.email, phone: parsed.data.phone },
+    });
+  } catch {
+    // Keep the login email in step with the profile if the save failed.
+    if (emailChanged) {
+      await admin.auth.admin.updateUserById(profile.authUserId, { email: profile.email, email_confirm: true });
+    }
+    return { error: "Could not save the admin. Please try again." };
+  }
   await logAudit(actor.id, "UPDATE", "Profile", parsed.data.id, {
     name: parsed.data.name,
     email: parsed.data.email,
@@ -196,7 +224,7 @@ export async function updateBuildingAdmin(_prev: { error?: string }, formData: F
   return { error: undefined };
 }
 
-const resetAdminPasswordSchema = z.object({ id: z.string().uuid(), password: z.string().min(6) });
+const resetAdminPasswordSchema = z.object({ id: z.string().uuid(), password: z.string().min(8, "Password must be at least 8 characters.") });
 
 export async function resetBuildingAdminPassword(_prev: { error?: string }, formData: FormData) {
   const actor = await requireSuperAdmin();
@@ -222,7 +250,7 @@ export async function resetBuildingAdminPassword(_prev: { error?: string }, form
   return { error: undefined };
 }
 
-export async function removeBuildingAdmin(id: string) {
+export const removeBuildingAdmin = withErrors(async (id: string) => {
   const actor = await requireSuperAdmin();
 
   const profile = await prisma.profile.findUnique({ where: { id } });
@@ -236,4 +264,4 @@ export async function removeBuildingAdmin(id: string) {
   await prisma.profile.delete({ where: { id } });
   await logAudit(actor.id, "DELETE", "Profile", id, { name: profile.name, email: profile.email });
   revalidatePath("/admin/buildings");
-}
+});

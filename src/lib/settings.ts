@@ -6,5 +6,7 @@ import { prisma } from "@/lib/prisma";
 export async function getSettings(buildingId: string) {
   const existing = await prisma.settings.findUnique({ where: { buildingId } });
   if (existing) return existing;
-  return prisma.settings.create({ data: { buildingId } });
+  // Use the building's real name, not the "My Building" column default.
+  const building = await prisma.building.findUnique({ where: { id: buildingId } });
+  return prisma.settings.create({ data: { buildingId, buildingName: building?.name } });
 }

@@ -9,7 +9,7 @@ import { updateSettings } from "./actions";
 import { DangerZone } from "./danger-zone";
 
 export default async function SettingsPage() {
-  const { buildingId } = await requireAdminContext();
+  const { profile, buildingId } = await requireAdminContext();
   const settings = await getSettings(buildingId);
 
   return (
@@ -61,7 +61,7 @@ export default async function SettingsPage() {
                 <Label htmlFor="allowMembersViewAllMonths">Members Can Browse All Months</Label>
                 <p className="text-xs text-muted-foreground">
                   Lets members pick any past month on the Monthly Data page, not just the current
-                  one. Requires "Members Can View Building Finances" above to also be on.
+                  one. Requires &ldquo;Members Can View Building Finances&rdquo; above to also be on.
                 </p>
               </div>
               <Switch
@@ -75,7 +75,7 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
-      <DangerZone />
+      {profile.role === "SUPER_ADMIN" && <DangerZone />}
     </div>
   );
 }

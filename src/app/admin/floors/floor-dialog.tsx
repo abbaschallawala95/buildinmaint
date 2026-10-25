@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createFloor, updateFloor } from "./actions";
+import { succeeded } from "@/lib/toast-result";
 
 export function FloorDialog({
   floor,
@@ -30,10 +31,10 @@ export function FloorDialog({
           <DialogTitle>{floor ? "Edit Floor" : "Add Floor"}</DialogTitle>
         </DialogHeader>
         <form
-          action={async (formData) => {
-            if (floor) await updateFloor(formData);
-            else await createFloor(formData);
-            setOpen(false);
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            if (await succeeded(floor ? updateFloor(formData) : createFloor(formData))) setOpen(false);
           }}
           className="space-y-4"
         >

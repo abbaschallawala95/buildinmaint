@@ -1,3 +1,4 @@
+import { monthParam } from "@/lib/utils";
 import Link from "next/link";
 import { Wallet, AlertCircle, Building2, Layers, Users, PiggyBank, TrendingDown, Landmark } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -7,8 +8,12 @@ import { getFinancialOverview } from "@/lib/finance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { themeOf } from "@/lib/themes";
+import { DuesCalendar } from "@/components/theme-widgets/dues-calendar";
+import { Noticeboard } from "@/components/theme-widgets/noticeboard";
+import { CollectionRing } from "@/components/theme-widgets/collection-ring";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -24,15 +29,15 @@ export default async function AdminDashboardPage({
   const params = await searchParams;
   const now = new Date();
   const isFiltered = Boolean(params.month || params.year);
-  const month = Number(params.month) || now.getMonth() + 1;
+  const month = monthParam(params.month);
   const year = Number(params.year) || now.getFullYear();
-  const overview = await getFinancialOverview(buildingId, isFiltered ? { month, year } : undefined);
-
-  const [floorCount, flatCount, memberCount] = await Promise.all([
+  const [overview, floorCount, flatCount, memberCount] = await Promise.all([
+    getFinancialOverview(buildingId, isFiltered ? { month, year } : undefined),
     prisma.floor.count({ where: { buildingId } }),
     prisma.flat.count({ where: { floor: { buildingId } } }),
     prisma.profile.count({ where: { role: "MEMBER", buildingId } }),
   ]);
+  const widgets: readonly string[] = themeOf(overview.settings.theme).widgets;
 
   const incomeLabel = isFiltered
     ? `Income (${MONTH_NAMES[month - 1]} ${year})`
@@ -84,10 +89,11 @@ export default async function AdminDashboardPage({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground">
-            {overview.settings.buildingName} · {MONTH_NAMES[now.getMonth()]} {now.getFullYear()}
+            {overview.settings.buildingName} ·{" "}
+            {isFiltered ? `${MONTH_NAMES[month - 1]} ${year}` : "All time"}
           </p>
         </div>
-        <form method="get" className="flex items-end gap-2">
+        <form method="get" className="flex flex-wrap items-end gap-2">
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Month</label>
             <select
@@ -109,17 +115,16 @@ export default async function AdminDashboardPage({
           <Button type="submit" variant="outline">
             View
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            render={
-              <Link href={`/admin?month=${now.getMonth() + 1}&year=${now.getFullYear()}`}>
-                This Month
-              </Link>
-            }
-          />
+          <Link
+            href={`/admin?month=${now.getMonth() + 1}&year=${now.getFullYear()}`}
+            className={buttonVariants({ variant: "ghost" })}
+          >
+            This Month
+          </Link>
           {isFiltered && (
-            <Button type="button" variant="ghost" render={<Link href="/admin">All Time</Link>} />
+            <Link href="/admin" className={buttonVariants({ variant: "ghost" })}>
+              All Time
+            </Link>
           )}
         </form>
       </div>
@@ -165,6 +170,11 @@ export default async function AdminDashboardPage({
         </Card>
       </div>
 
+      {/* Theme extras (Ledger / Courtyard / Bento); every other section is the same for all themes */}
+      {widgets.includes("dues-calendar") && <DuesCalendar buildingId={buildingId} year={year} />}
+      {widgets.includes("noticeboard") && <Noticeboard buildingId={buildingId} month={month} year={year} />}
+      {widgets.includes("collection-ring") && <CollectionRing buildingId={buildingId} month={month} year={year} />}
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -189,7 +199,7 @@ export default async function AdminDashboardPage({
                 )}
                 {overview.recentTransactions.map((t) => (
                   <TableRow key={t.id}>
-                    <TableCell>{t.date.toLocaleDateString()}</TableCell>
+                    <TableCell>{t.date.toLocaleDateString("en-IN")}</TableCell>
                     <TableCell>{t.description}</TableCell>
                     <TableCell
                       className={`text-right ${t.kind === "income" ? "text-emerald-600" : "text-rose-600"}`}
@@ -212,7 +222,7 @@ export default async function AdminDashboardPage({
             {overview.overdueBills.map((b) => (
               <div key={b.id} className="flex items-center justify-between text-sm">
                 <span>{b.type === "LIFT" ? "Lift" : "Common Area"} Electricity Bill</span>
-                <Badge variant="secondary">₹{b.amount.toString()} due {b.dueDate.toLocaleDateString()}</Badge>
+                <Badge variant="secondary">₹{b.amount.toString()} due {b.dueDate.toLocaleDateString("en-IN")}</Badge>
               </div>
             ))}
             {overview.overdueCharges.map((c) => (

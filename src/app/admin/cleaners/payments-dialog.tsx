@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/select";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { addCleanerPaymentEntry, deleteCleanerPaymentEntry } from "./actions";
+import { todayValue } from "@/lib/utils";
+import { succeeded } from "@/lib/toast-result";
 
 const METHOD_LABELS: Record<string, string> = {
   CASH: "Cash",
@@ -90,7 +92,7 @@ export function CleanerPaymentsDialog({
                 <div>
                   <div className="font-medium">₹{Number(e.amount).toFixed(2)}</div>
                   <div className="text-xs text-muted-foreground">
-                    {new Date(e.paymentDate).toLocaleDateString()} · {METHOD_LABELS[e.paymentMethod]}
+                    {new Date(e.paymentDate).toLocaleDateString("en-IN")} · {METHOD_LABELS[e.paymentMethod]}
                     {e.notes ? ` · ${e.notes}` : ""}
                   </div>
                 </div>
@@ -106,8 +108,10 @@ export function CleanerPaymentsDialog({
         )}
 
         <form
-          action={async (formData) => {
-            await addCleanerPaymentEntry(formData);
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const form = e.currentTarget;
+            if (await succeeded(addCleanerPaymentEntry(new FormData(form)))) form.reset();
           }}
           className="space-y-4 border-t pt-4"
         >
@@ -138,13 +142,13 @@ export function CleanerPaymentsDialog({
               id="paymentDate"
               name="paymentDate"
               type="date"
-              defaultValue={new Date().toISOString().slice(0, 10)}
+              defaultValue={todayValue()}
               required
             />
           </div>
           <div className="space-y-2">
             <Label>Payment Method</Label>
-            <Select value={method} onValueChange={(v) => v && setMethod(v)}>
+            <Select items={METHOD_LABELS} value={method} onValueChange={(v) => v && setMethod(v)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

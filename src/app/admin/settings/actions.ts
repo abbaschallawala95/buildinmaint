@@ -40,6 +40,10 @@ export async function updateSettings(formData: FormData) {
 export async function resetAllData(_prev: { error?: string }, formData: FormData) {
   const { profile: actor, buildingId } = await requireAdminContext();
 
+  if (actor.role !== "SUPER_ADMIN") {
+    return { error: "Only a super admin can erase building data." };
+  }
+
   if (formData.get("confirm") !== "DELETE") {
     return { error: 'Type "DELETE" to confirm.' };
   }
@@ -55,7 +59,6 @@ export async function resetAllData(_prev: { error?: string }, formData: FormData
     prisma.expenseCategory.deleteMany({ where: { buildingId } }),
     prisma.electricityBill.deleteMany({ where: { buildingId } }),
     prisma.floor.deleteMany({ where: { buildingId } }),
-    prisma.auditLog.deleteMany({ where: { buildingId } }),
     prisma.profile.deleteMany({ where: { role: "MEMBER", buildingId } }),
   ]);
 

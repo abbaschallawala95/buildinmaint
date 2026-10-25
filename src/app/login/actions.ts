@@ -24,12 +24,12 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
   if (error || !data.user) return { error: "Invalid email or password." };
 
   const profile = await prisma.profile.findUnique({ where: { authUserId: data.user.id } });
-  if (!profile || !profile.isActive) {
+  if (!profile || !profile.isActive || (profile.role !== "SUPER_ADMIN" && !profile.buildingId)) {
     await supabase.auth.signOut();
     return { error: "This account is not active. Contact your building admin." };
   }
 
-  redirect(profile.role === "SUPER_ADMIN" ? "/admin" : "/member");
+  redirect(profile.role === "MEMBER" ? "/member" : "/admin");
 }
 
 export async function logout() {

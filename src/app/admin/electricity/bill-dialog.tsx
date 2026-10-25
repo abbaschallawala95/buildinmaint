@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createBill, updateBill } from "./actions";
+import { succeeded } from "@/lib/toast-result";
 
 export function BillDialog({
   bill,
@@ -45,10 +46,10 @@ export function BillDialog({
           <DialogTitle>{bill ? "Edit Electricity Bill" : "Add Electricity Bill"}</DialogTitle>
         </DialogHeader>
         <form
-          action={async (formData) => {
-            if (bill) await updateBill(formData);
-            else await createBill(formData);
-            setOpen(false);
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            if (await succeeded(bill ? updateBill(formData) : createBill(formData))) setOpen(false);
           }}
           className="space-y-4"
         >
@@ -56,7 +57,11 @@ export function BillDialog({
           <input type="hidden" name="type" value={type} />
           <div className="space-y-2">
             <Label>Type</Label>
-            <Select value={type} onValueChange={(v) => v && setType(v as "LIFT" | "COMMON_AREA")}>
+            <Select
+              items={{ LIFT: "Lift", COMMON_AREA: "Common Area" }}
+              value={type}
+              onValueChange={(v) => v && setType(v as "LIFT" | "COMMON_AREA")}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

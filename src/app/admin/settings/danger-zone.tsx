@@ -20,8 +20,8 @@ export function DangerZone() {
       <CardHeader>
         <CardTitle className="text-destructive">Danger Zone</CardTitle>
         <CardDescription>
-          Erase all floors, flats, members, cleaners, payments, charges, expenses, bills, and audit
-          logs — a full reset back to a blank building. This cannot be undone.
+          Erase all floors, flats, members, cleaners, payments, charges, expenses, and bills — a full
+          reset back to a blank building. The audit log is kept. This cannot be undone.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -56,8 +56,8 @@ export function DangerZone() {
               >
                 <p className="text-sm text-muted-foreground">
                   This permanently deletes every floor, flat, member, cleaner, payment, charge,
-                  expense, electricity bill, and audit log. Your own super-admin login and building
-                  settings are kept. Type <span className="font-mono font-semibold">DELETE</span> to
+                  expense, and electricity bill. Your own super-admin login, building settings, and
+                  the audit log are kept. Type <span className="font-mono font-semibold">DELETE</span> to
                   confirm.
                 </p>
                 <div className="space-y-2">

@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { setMemberActive, resetMemberPassword, deleteMember } from "./actions";
+import { succeeded } from "@/lib/toast-result";
 
 export function MemberRowActions({ id, isActive }: { id: string; isActive: boolean }) {
   const [isPending, startTransition] = useTransition();
@@ -50,7 +51,7 @@ export function MemberRowActions({ id, isActive }: { id: string; isActive: boole
             <input type="hidden" name="id" value={id} />
             <div className="space-y-2">
               <Label htmlFor={`password-${id}`}>New Password</Label>
-              <Input id={`password-${id}`} name="password" type="text" minLength={6} required />
+              <Input id={`password-${id}`} name="password" type="text" minLength={8} required />
             </div>
             {resetError && <p className="text-sm text-destructive">{resetError}</p>}
             <Button type="submit" className="w-full">
@@ -64,7 +65,11 @@ export function MemberRowActions({ id, isActive }: { id: string; isActive: boole
         variant={isActive ? "destructive" : "default"}
         size="sm"
         disabled={isPending}
-        onClick={() => startTransition(() => setMemberActive(id, !isActive))}
+        onClick={() =>
+          startTransition(async () => {
+            await succeeded(setMemberActive(id, !isActive));
+          })
+        }
       >
         {isActive ? "Deactivate" : "Activate"}
       </Button>

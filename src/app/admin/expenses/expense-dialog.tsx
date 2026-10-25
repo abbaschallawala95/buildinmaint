@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createExpense, updateExpense } from "./actions";
+import { todayValue } from "@/lib/utils";
+import { succeeded } from "@/lib/toast-result";
 
 type Category = { id: string; name: string };
 
@@ -48,10 +50,10 @@ export function ExpenseDialog({
           <DialogTitle>{expense ? "Edit Expense" : "Add Expense"}</DialogTitle>
         </DialogHeader>
         <form
-          action={async (formData) => {
-            if (expense) await updateExpense(formData);
-            else await createExpense(formData);
-            setOpen(false);
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            if (await succeeded(expense ? updateExpense(formData) : createExpense(formData))) setOpen(false);
           }}
           className="space-y-4"
         >
@@ -59,7 +61,11 @@ export function ExpenseDialog({
           <input type="hidden" name="categoryId" value={categoryId} />
           <div className="space-y-2">
             <Label>Category</Label>
-            <Select value={categoryId} onValueChange={(v) => v && setCategoryId(v)}>
+            <Select
+              items={Object.fromEntries(categories.map((c) => [c.id, c.name]))}
+              value={categoryId}
+              onValueChange={(v) => v && setCategoryId(v)}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select category" />
               </SelectTrigger>
@@ -100,7 +106,7 @@ export function ExpenseDialog({
               id="date"
               name="date"
               type="date"
-              defaultValue={expense?.date ?? new Date().toISOString().slice(0, 10)}
+              defaultValue={expense?.date ?? todayValue()}
               required
             />
           </div>

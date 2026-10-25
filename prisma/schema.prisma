@@ -279,6 +279,7 @@ model Settings {
   openingBalance             Decimal @default(0) @db.Decimal(12, 2)
   allowMembersViewFinancials Boolean @default(false)
   allowMembersViewAllMonths  Boolean @default(false)
+  theme                      String  @default("indigo") // key from src/lib/themes.ts
 
   building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
 

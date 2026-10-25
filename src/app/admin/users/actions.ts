@@ -6,12 +6,13 @@ import { requireAdminContext } from "@/lib/building-context";
 import { prisma } from "@/lib/prisma";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
+import { withErrors } from "@/lib/action-result";
 
 const createSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   phone: z.string().optional(),
-  password: z.string().min(6),
+  password: z.string().min(8, "Password must be at least 8 characters."),
 });
 
 export async function createMember(_prev: { error?: string }, formData: FormData) {
@@ -33,17 +34,25 @@ export async function createMember(_prev: { error?: string }, formData: FormData
   });
   if (error || !data.user) return { error: error?.message ?? "Could not create account" };
 
-  const profile = await prisma.profile.create({
-    data: {
-      authUserId: data.user.id,
-      name: parsed.data.name,
-      email: parsed.data.email,
-      phone: parsed.data.phone,
-      role: "MEMBER",
-      buildingId,
-      mustChangePassword: true,
-    },
-  });
+  const profile = await prisma.profile
+    .create({
+      data: {
+        authUserId: data.user.id,
+        name: parsed.data.name,
+        email: parsed.data.email,
+        phone: parsed.data.phone,
+        role: "MEMBER",
+        buildingId,
+        mustChangePassword: true,
+      },
+    })
+    .catch(async (e: { code?: string }) => {
+      // Don't leave a login with no profile behind — it would block this email forever.
+      await admin.auth.admin.deleteUser(data.user.id);
+      return e.code === "P2002" ? ("duplicate" as const) : null;
+    });
+  if (profile === "duplicate") return { error: "That email is already used by another account." };
+  if (!profile) return { error: "Could not save the member. Please try again." };
   await logAudit(actor.id, "CREATE", "Profile", profile.id, { name: profile.name, email: profile.email }, buildingId);
 
   revalidatePath("/admin/users");
@@ -71,7 +80,7 @@ export async function updateMember(_prev: { error?: string }, formData: FormData
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   const profile = await prisma.profile.findFirst({
-    where: { id: parsed.data.id, buildingId },
+    where: { id: parsed.data.id, buildingId, role: "MEMBER" },
     include: { flat: true },
   });
   if (!profile) return { error: "Member not found" };
@@ -79,10 +88,18 @@ export async function updateMember(_prev: { error?: string }, formData: FormData
   if (parsed.data.flatId) {
     const flat = await prisma.flat.findFirst({ where: { id: parsed.data.flatId, floor: { buildingId } } });
     if (!flat) return { error: "Flat not found" };
+    if (flat.memberId && flat.memberId !== parsed.data.id) {
+      return { error: "That flat is already assigned to another member." };
+    }
   }
 
-  if (parsed.data.email !== profile.email) {
-    const admin = createAdminClient();
+  const emailChanged = parsed.data.email !== profile.email;
+  if (emailChanged && (await prisma.profile.findFirst({ where: { email: parsed.data.email } }))) {
+    return { error: "That email is already used by another account." };
+  }
+
+  const admin = createAdminClient();
+  if (emailChanged) {
     const { error } = await admin.auth.admin.updateUserById(profile.authUserId, {
       email: parsed.data.email,
       email_confirm: true,
@@ -107,7 +124,11 @@ export async function updateMember(_prev: { error?: string }, formData: FormData
       }
     });
   } catch {
-    return { error: "That flat is already assigned to another member." };
+    // Keep the login email in step with the profile if the save failed.
+    if (emailChanged) {
+      await admin.auth.admin.updateUserById(profile.authUserId, { email: profile.email, email_confirm: true });
+    }
+    return { error: "Could not save the member. Please try again." };
   }
 
   await logAudit(actor.id, "UPDATE", "Profile", parsed.data.id, { name: parsed.data.name, email: parsed.data.email }, buildingId);
@@ -117,20 +138,20 @@ export async function updateMember(_prev: { error?: string }, formData: FormData
   return { error: undefined };
 }
 
-export async function setMemberActive(id: string, isActive: boolean) {
+export const setMemberActive = withErrors(async (id: string, isActive: boolean) => {
   const { profile: actor, buildingId } = await requireAdminContext();
-  const member = await prisma.profile.findFirst({ where: { id, buildingId } });
+  const member = await prisma.profile.findFirst({ where: { id, buildingId, role: "MEMBER" } });
   if (!member) throw new Error("Member not found");
   await prisma.profile.update({ where: { id }, data: { isActive } });
   await logAudit(actor.id, isActive ? "ACTIVATE" : "DEACTIVATE", "Profile", id, undefined, buildingId);
   revalidatePath("/admin/users");
-}
+});
 
-export async function deleteMember(id: string) {
+export const deleteMember = withErrors(async (id: string) => {
   const { profile: actor, buildingId } = await requireAdminContext();
 
-  const profile = await prisma.profile.findFirst({ where: { id, buildingId } });
-  if (!profile) return;
+  const profile = await prisma.profile.findFirst({ where: { id, buildingId, role: "MEMBER" } });
+  if (!profile) throw new Error("Member not found");
 
   const admin = createAdminClient();
   await admin.auth.admin.deleteUser(profile.authUserId).catch(() => {
@@ -141,11 +162,11 @@ export async function deleteMember(id: string) {
   await logAudit(actor.id, "DELETE", "Profile", id, { name: profile.name, email: profile.email }, buildingId);
   revalidatePath("/admin/users");
   revalidatePath("/admin/floors");
-}
+});
 
 const resetPasswordSchema = z.object({
   id: z.string().uuid(),
-  password: z.string().min(6),
+  password: z.string().min(8, "Password must be at least 8 characters."),
 });
 
 export async function resetMemberPassword(_prev: { error?: string }, formData: FormData) {
@@ -157,7 +178,7 @@ export async function resetMemberPassword(_prev: { error?: string }, formData: F
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
-  const profile = await prisma.profile.findFirst({ where: { id: parsed.data.id, buildingId } });
+  const profile = await prisma.profile.findFirst({ where: { id: parsed.data.id, buildingId, role: "MEMBER" } });
   if (!profile) return { error: "Member not found" };
 
   const admin = createAdminClient();

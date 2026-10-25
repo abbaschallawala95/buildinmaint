@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createFlat, updateFlat } from "./actions";
+import { succeeded } from "@/lib/toast-result";
+import { currentMonthValue } from "@/lib/utils";
 
 type MemberOption = { id: string; name: string; email: string };
 
@@ -49,10 +51,10 @@ export function FlatDialog({
           <DialogTitle>{flat ? "Edit Flat" : "Add Flat"}</DialogTitle>
         </DialogHeader>
         <form
-          action={async (formData) => {
-            if (flat) await updateFlat(formData);
-            else await createFlat(formData);
-            setOpen(false);
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            if (await succeeded(flat ? updateFlat(formData) : createFlat(formData))) setOpen(false);
           }}
           className="space-y-4"
         >
@@ -82,8 +84,16 @@ export function FlatDialog({
             />
           </div>
           <div className="space-y-2">
+            <Label htmlFor="effectiveFrom">Amount Effective From</Label>
+            <Input id="effectiveFrom" name="effectiveFrom" type="month" defaultValue={currentMonthValue()} required />
+            <p className="text-xs text-muted-foreground">
+              Pick an earlier month to correct a past rate. Months before this keep their old amount.
+            </p>
+          </div>
+          <div className="space-y-2">
             <Label>Assigned Member</Label>
             <Select
+              items={{ none: "Unassigned", ...Object.fromEntries(members.map((m) => [m.id, `${m.name} (${m.email})`])) }}
               value={memberId || "none"}
               onValueChange={(v) => setMemberId(!v || v === "none" ? "" : v)}
             >

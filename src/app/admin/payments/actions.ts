@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireAdminContext } from "@/lib/building-context";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
+import { withErrors } from "@/lib/action-result";
 
 async function requireFlatInBuilding(flatId: string, buildingId: string) {
   const flat = await prisma.flat.findFirst({ where: { id: flatId, floor: { buildingId } } });
@@ -22,7 +23,7 @@ const markPaidSchema = z.object({
   notes: z.string().optional(),
 });
 
-export async function markPaymentPaid(formData: FormData) {
+export const markPaymentPaid = withErrors(async (formData: FormData) => {
   const { profile: admin, buildingId } = await requireAdminContext();
 
   const parsed = markPaidSchema.parse({
@@ -66,7 +67,7 @@ export async function markPaymentPaid(formData: FormData) {
 
   revalidatePath("/admin/payments");
   revalidatePath("/admin");
-}
+});
 
 const chargeSchema = z.object({
   flatId: z.string().uuid(),
@@ -75,7 +76,7 @@ const chargeSchema = z.object({
   dueDate: z.string().optional(),
 });
 
-export async function createCharge(formData: FormData) {
+export const createCharge = withErrors(async (formData: FormData) => {
   const { profile: admin, buildingId } = await requireAdminContext();
   const parsed = chargeSchema.parse({
     flatId: formData.get("flatId"),
@@ -101,7 +102,7 @@ export async function createCharge(formData: FormData) {
 
   revalidatePath(`/admin/payments/${parsed.flatId}`);
   revalidatePath("/admin");
-}
+});
 
 const previousDuesSchema = z.object({
   flatId: z.string().uuid(),
@@ -109,7 +110,7 @@ const previousDuesSchema = z.object({
   amount: z.coerce.number().positive(),
 });
 
-export async function addPreviousYearDues(formData: FormData) {
+export const addPreviousYearDues = withErrors(async (formData: FormData) => {
   const { profile: admin, buildingId } = await requireAdminContext();
   const parsed = previousDuesSchema.parse({
     flatId: formData.get("flatId"),
@@ -133,7 +134,7 @@ export async function addPreviousYearDues(formData: FormData) {
 
   revalidatePath(`/admin/payments/${parsed.flatId}`);
   revalidatePath("/admin");
-}
+});
 
 const markChargePaidSchema = z.object({
   id: z.string().uuid(),
@@ -141,7 +142,7 @@ const markChargePaidSchema = z.object({
   paymentDate: z.string().min(1),
 });
 
-export async function markChargePaid(formData: FormData) {
+export const markChargePaid = withErrors(async (formData: FormData) => {
   const { profile: actor, buildingId } = await requireAdminContext();
   const parsed = markChargePaidSchema.parse({
     id: formData.get("id"),
@@ -161,9 +162,9 @@ export async function markChargePaid(formData: FormData) {
 
   revalidatePath(`/admin/payments/${parsed.flatId}`);
   revalidatePath("/admin");
-}
+});
 
-export async function deleteCharge(id: string) {
+export const deleteCharge = withErrors(async (id: string) => {
   const { profile: actor, buildingId } = await requireAdminContext();
   const charge = await prisma.additionalCharge.findFirst({
     where: { id, flat: { floor: { buildingId } } },
@@ -173,7 +174,7 @@ export async function deleteCharge(id: string) {
   await logAudit(actor.id, "DELETE", "AdditionalCharge", id, undefined, buildingId);
   revalidatePath(`/admin/payments/${charge.flatId}`);
   revalidatePath("/admin");
-}
+});
 
 const markUnpaidSchema = z.object({
   flatId: z.string().uuid(),
@@ -191,16 +192,19 @@ export async function markPaymentUnpaid(formData: FormData) {
   });
   await requireFlatInBuilding(parsed.flatId, buildingId);
 
-  await prisma.maintenancePayment
+  const deleted = await prisma.maintenancePayment
     .delete({
       where: { flatId_month_year: { flatId: parsed.flatId, month: parsed.month, year: parsed.year } },
     })
-    .catch(() => {
-      // No row means it was already unpaid (default state) — nothing to do.
-    });
+    .catch(() => null); // No row means it was already unpaid (default state) — nothing to do.
+  // Keep what was deleted in the audit log so a mistaken "Mark Unpaid" can be re-entered.
   await logAudit(actor.id, "MARK_UNPAID", "MaintenancePayment", parsed.flatId, {
     month: parsed.month,
     year: parsed.year,
+    amount: deleted?.amount.toString(),
+    paymentDate: deleted?.paymentDate?.toISOString().slice(0, 10),
+    paymentMethod: deleted?.paymentMethod,
+    notes: deleted?.notes,
   }, buildingId);
 
   revalidatePath("/admin/payments");
