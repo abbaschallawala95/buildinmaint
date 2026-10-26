@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx scripts/check-themes.ts && tsx scripts/check-dues.ts && tsx scripts/check-rates.ts && tsx --conditions=react-server scripts/check-pdf.ts"
+    "test": "tsx scripts/check-themes.ts && tsx scripts/check-dues.ts && tsx scripts/check-rates.ts && tsx scripts/check-analytics.ts && tsx --conditions=react-server scripts/check-pdf.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

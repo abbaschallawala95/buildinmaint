@@ -56,20 +56,6 @@ export default async function SettingsPage() {
                 defaultChecked={settings.allowMembersViewFinancials}
               />
             </div>
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <Label htmlFor="allowMembersViewAllMonths">Members Can Browse All Months</Label>
-                <p className="text-xs text-muted-foreground">
-                  Lets members pick any past month on the Monthly Data page, not just the current
-                  one. Requires &ldquo;Members Can View Building Finances&rdquo; above to also be on.
-                </p>
-              </div>
-              <Switch
-                id="allowMembersViewAllMonths"
-                name="allowMembersViewAllMonths"
-                defaultChecked={settings.allowMembersViewAllMonths}
-              />
-            </div>
             <Button type="submit">Save Settings</Button>
           </form>
         </CardContent>

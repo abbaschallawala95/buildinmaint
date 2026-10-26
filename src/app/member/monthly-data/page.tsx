@@ -5,8 +5,10 @@ import { getFinancialOverview } from "@/lib/finance";
 import { getSettings } from "@/lib/settings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { MonthYearPicker } from "./month-year-picker";
+
+// First year the app holds data for; the year dropdown runs from here to the current year.
+const FIRST_YEAR = 2026;
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -26,9 +28,12 @@ export default async function MemberMonthlyDataPage({
 
   const params = await searchParams;
   const now = new Date();
-  const canBrowseAllMonths = settings.allowMembersViewAllMonths;
-  const month = monthParam(canBrowseAllMonths ? params.month : undefined);
-  const year = (canBrowseAllMonths && Number(params.year)) || now.getFullYear();
+  const thisYear = now.getFullYear();
+  const thisMonth = now.getMonth() + 1;
+  const requestedYear = Number(params.year);
+  const year = requestedYear >= FIRST_YEAR && requestedYear <= thisYear ? requestedYear : thisYear;
+  // No future months: in the current year, anything after this month falls back to this month.
+  const month = year === thisYear ? Math.min(monthParam(params.month), thisMonth) : monthParam(params.month);
   const overview = await getFinancialOverview(profile.buildingId, { month, year });
 
   return (
@@ -45,31 +50,14 @@ export default async function MemberMonthlyDataPage({
           <CardTitle>
             {MONTH_NAMES[month - 1]} {year}
           </CardTitle>
-          {canBrowseAllMonths && (
-            <form method="get" className="flex flex-wrap items-end gap-2">
-              <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Month</label>
-                <select
-                  name="month"
-                  defaultValue={month}
-                  className="h-9 rounded-md border bg-background px-3 text-sm"
-                >
-                  {MONTH_NAMES.map((m, i) => (
-                    <option key={m} value={i + 1}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Year</label>
-                <Input name="year" type="number" defaultValue={year} className="w-24" />
-              </div>
-              <Button type="submit" variant="outline">
-                View
-              </Button>
-            </form>
-          )}
+          <MonthYearPicker
+            key={`${month}-${year}`}
+            month={month}
+            year={year}
+            thisMonth={thisMonth}
+            thisYear={thisYear}
+            firstYear={FIRST_YEAR}
+          />
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-2">

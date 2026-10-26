@@ -8,6 +8,8 @@ export type Transaction = {
   id: string;
   date: Date;
   description: string;
+  /** what it is, without the flat — groups transactions on the Analytics page */
+  head: string;
   amount: number;
   kind: "income" | "expense";
 };
@@ -63,6 +65,7 @@ async function loadTransactions(
       id: `payment-${p.id}`,
       date: p.paymentDate ?? p.createdAt,
       description: `Maintenance — ${p.flat.floor.name} / ${p.flat.flatNumber}`,
+      head: "Maintenance",
       amount: Number(p.amount),
       kind: "income" as const,
     })),
@@ -70,6 +73,7 @@ async function loadTransactions(
       id: `charge-${c.id}`,
       date: c.paymentDate ?? c.createdAt,
       description: `${c.description} — ${c.flat.floor.name} / ${c.flat.flatNumber}`,
+      head: c.description,
       amount: Number(c.amount),
       kind: "income" as const,
     })),
@@ -77,6 +81,7 @@ async function loadTransactions(
       id: `expense-${e.id}`,
       date: e.date,
       description: `${e.category.name} — ${e.description}`,
+      head: e.category.name,
       amount: Number(e.amount),
       kind: "expense" as const,
     })),
@@ -84,6 +89,7 @@ async function loadTransactions(
       id: `bill-${b.id}`,
       date: b.paymentDate ?? b.createdAt,
       description: `${b.type === "LIFT" ? "Lift" : "Common Area"} Electricity Bill`,
+      head: `${b.type === "LIFT" ? "Lift" : "Common Area"} Electricity Bill`,
       amount: Number(b.amount),
       kind: "expense" as const,
     })),
@@ -91,11 +97,17 @@ async function loadTransactions(
       id: `cleaner-payment-entry-${e.id}`,
       date: e.paymentDate,
       description: `Cleaner Salary — ${e.cleanerPayment.cleaner.name}`,
+      head: "Cleaner Salary",
       amount: Number(e.amount),
       kind: "expense" as const,
     })),
   ].sort((a, b) => b.date.getTime() - a.date.getTime());
   return take ? all.slice(0, take) : all;
+}
+
+// Every paid transaction of `year`, plus the previous December (the baseline for January).
+export function getYearTransactions(buildingId: string, year: number) {
+  return loadTransactions(buildingId, { range: { gte: new Date(year - 1, 11, 1), lt: new Date(year + 1, 0, 1) } });
 }
 
 export async function getFinancialOverview(buildingId: string, period?: { month: number; year: number }) {

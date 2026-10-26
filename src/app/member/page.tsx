@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { BarChart3, ChevronRight } from "lucide-react";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -79,7 +81,15 @@ export default async function MemberDashboardPage({
   const yearSchedule = schedule.filter((s) => s.year === selectedYear);
   const yearDue = totalDue(yearSchedule);
 
-  const settings = profile!.buildingId ? await getSettings(profile!.buildingId) : null;
+  const [settings, sharedReports] = profile!.buildingId
+    ? await Promise.all([
+        getSettings(profile!.buildingId),
+        prisma.sharedAnalytics.findMany({
+          where: { buildingId: profile!.buildingId },
+          orderBy: [{ year: "desc" }, { month: "desc" }],
+        }),
+      ])
+    : [null, []];
   const overview =
     settings?.allowMembersViewFinancials && profile!.buildingId
       ? await getFinancialOverview(profile!.buildingId)
@@ -132,6 +142,36 @@ export default async function MemberDashboardPage({
           </CardContent>
         </Card>
       </div>
+
+      {sharedReports.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="size-5 text-primary" aria-hidden /> Building analytics
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">Shared by your building admin.</p>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {sharedReports.map((r) => (
+              <Link
+                key={r.id}
+                href={`/member/analytics/${r.id}`}
+                className="group flex items-center justify-between rounded-xl border bg-card p-4 transition-colors hover:border-primary hover:bg-muted"
+              >
+                <div>
+                  <p className="font-semibold">
+                    {MONTH_NAMES[r.month - 1]} {r.year}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {r.sections.length} section{r.sections.length === 1 ? "" : "s"} · shared {r.sharedAt.toLocaleDateString("en-IN")}
+                  </p>
+                </div>
+                <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

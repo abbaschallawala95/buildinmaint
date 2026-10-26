@@ -12,7 +12,6 @@ const schema = z.object({
   buildingName: z.string().min(1),
   openingBalance: z.coerce.number(),
   allowMembersViewFinancials: z.coerce.boolean(),
-  allowMembersViewAllMonths: z.coerce.boolean(),
 });
 
 export async function updateSettings(formData: FormData) {
@@ -21,9 +20,7 @@ export async function updateSettings(formData: FormData) {
   const parsed = schema.parse({
     buildingName: formData.get("buildingName"),
     openingBalance: formData.get("openingBalance"),
-    allowMembersViewFinancials: formData.get("allowMembersViewFinancials") === "on",
-    allowMembersViewAllMonths: formData.get("allowMembersViewAllMonths") === "on",
-  });
+    allowMembersViewFinancials: formData.get("allowMembersViewFinancials") === "on",  });
 
   const settings = await getSettings(buildingId);
   await prisma.$transaction([

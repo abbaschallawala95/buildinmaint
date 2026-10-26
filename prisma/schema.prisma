@@ -50,6 +50,7 @@ model Building {
   electricityBills  ElectricityBill[]
   settings          Settings?
   auditLogs         AuditLog[]
+  sharedAnalytics   SharedAnalytics[]
 
   @@map("buildings")
 }
@@ -300,4 +301,23 @@ model AuditLog {
   actor    Profile?  @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@map("audit_logs")
+}
+
+// A month of analytics an admin shared with the building's members (see /admin/analytics).
+// Numbers are computed live when viewed; this row only records what to show.
+model SharedAnalytics {
+  id           String   @id @default(uuid())
+  buildingId   String
+  year         Int
+  month        Int
+  sections     String[] // keys from SECTIONS in src/lib/analytics.ts
+  compareYear  Int?
+  compareMonth Int?
+  sharedByName String
+  sharedAt     DateTime @default(now())
+
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+
+  @@unique([buildingId, year, month])
+  @@map("shared_analytics")
 }
