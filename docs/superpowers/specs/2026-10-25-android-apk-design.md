@@ -1,6 +1,6 @@
 # Android APK — Design
 
-**Date:** 2026-10-25 · **Status:** approved by user, not yet built
+**Date:** 2026-10-25 · **Status:** built and installed 2026-10-26 (working on the owner's phone)
 
 ## Goal
 Install Build Maintain on the owner's Android phone as a real app from a `.apk` file — own icon, full screen, no browser bar. Personal use only: **no Play Store**.
