@@ -75,3 +75,15 @@ export function buildDueSchedule(
 export function totalDue(schedule: MonthlyDue[]): number {
   return schedule.filter((s) => s.status === "UNPAID").reduce((sum, s) => sum + s.amount, 0);
 }
+
+// Unpaid additional charges split into previous (pre-app) dues and everything else.
+export function splitUnpaidCharges(
+  charges: { amount: number | { toString(): string }; status: string; previousDueType: string | null }[],
+): { previous: number; other: number } {
+  const split = { previous: 0, other: 0 };
+  for (const c of charges) {
+    if (c.status === "PAID") continue;
+    split[c.previousDueType ? "previous" : "other"] += Number(c.amount);
+  }
+  return split;
+}

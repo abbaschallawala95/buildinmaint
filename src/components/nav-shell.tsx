@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ThemeProvider } from "next-themes";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Building2, LayoutDashboard, Users, Wallet, Receipt, Zap, Settings, History, Menu, X, Sparkles, PiggyBank, HandCoins, FileDown, Landmark, Palette, BarChart3 } from "lucide-react";
+import { LogOut, Building2, LayoutDashboard, Users, Wallet, Receipt, Zap, Settings, History, Menu, X, Sparkles, PiggyBank, HandCoins, FileDown, Landmark, Palette, BarChart3, ClipboardList } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -20,6 +20,7 @@ const NAV_BY_ROLE = {
     { href: "/admin/floors", label: "Floors & Flats", icon: Building2 },
     { href: "/admin/users", label: "Members", icon: Users },
     { href: "/admin/payments", label: "Payments", icon: Wallet },
+    { href: "/admin/maintenance", label: "Maintenance", icon: ClipboardList },
     { href: "/admin/additional-income", label: "Additional Income", icon: HandCoins },
     { href: "/admin/expenses", label: "Expenses", icon: Receipt },
     { href: "/admin/electricity", label: "Electricity Bills", icon: Zap },

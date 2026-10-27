@@ -1,7 +1,7 @@
 // Self-check for the dues schedule behind Outstanding Dues and the Total Dues report.
 // Usage: npx tsx scripts/check-dues.ts
 import assert from "node:assert";
-import { buildDueSchedule, totalDue } from "../src/lib/maintenance-dues";
+import { buildDueSchedule, totalDue, splitUnpaidCharges } from "../src/lib/maintenance-dues";
 import { monthParam } from "../src/lib/utils";
 
 const rates = [
@@ -33,4 +33,13 @@ assert.equal(monthParam("3"), 3);
 for (const bad of ["13", "0", "abc", "", null, undefined, "2.5"]) {
   assert.equal(monthParam(bad), new Date().getMonth() + 1, `monthParam(${bad}) falls back to this month`);
 }
+// Unpaid charges split into previous dues and other charges; paid ones are ignored.
+const split = splitUnpaidCharges([
+  { amount: 6000, status: "UNPAID", previousDueType: "MAINTENANCE" },
+  { amount: 500, status: "UNPAID", previousDueType: "OTHER" },
+  { amount: 900, status: "PAID", previousDueType: "MAINTENANCE" },
+  { amount: 300, status: "UNPAID", previousDueType: null },
+  { amount: 200, status: "PAID", previousDueType: null },
+]);
+assert.deepEqual(split, { previous: 6500, other: 300 });
 console.log("OK");

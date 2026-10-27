@@ -7,10 +7,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { AddChargeDialog } from "./add-charge-dialog";
-import { PreviousDuesDialog } from "./previous-dues-dialog";
+import { PreviousDueDialog } from "../../maintenance/previous-due-dialog";
+import { Button } from "@/components/ui/button";
 import { MarkChargePaidDialog } from "./mark-charge-paid-dialog";
 import { deleteCharge } from "../actions";
-import { buildDueSchedule, totalDue } from "@/lib/maintenance-dues";
+import { buildDueSchedule, splitUnpaidCharges, totalDue } from "@/lib/maintenance-dues";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -55,7 +56,9 @@ export default async function FlatPaymentHistoryPage({
     now.getMonth() + 1,
     now.getFullYear(),
   ).reverse();
-  const dueTotal = totalDue(schedule);
+  const monthlyDue = totalDue(schedule);
+  const { previous, other } = splitUnpaidCharges(flat.additionalCharges);
+  const dueTotal = monthlyDue + previous + other;
 
   return (
     <div className="space-y-6">
@@ -71,6 +74,9 @@ export default async function FlatPaymentHistoryPage({
           /month
         </p>
         <p className="mt-1 text-lg font-semibold">Total Due: ₹{dueTotal.toFixed(2)}</p>
+        <p className="text-sm text-muted-foreground">
+          Monthly maintenance ₹{monthlyDue.toFixed(2)} · Previous dues ₹{previous.toFixed(2)} · Other charges ₹{other.toFixed(2)}
+        </p>
       </div>
 
       <Card>
@@ -118,7 +124,10 @@ export default async function FlatPaymentHistoryPage({
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Additional Charges & Other Dues</CardTitle>
           <div className="flex gap-2">
-            <PreviousDuesDialog flatId={flat.id} />
+            <PreviousDueDialog
+              flats={[{ id: flat.id, label: `${flat.floor.name} / ${flat.flatNumber}` }]}
+              trigger={<Button size="sm" variant="outline">Add Previous Dues</Button>}
+            />
             <AddChargeDialog flatId={flat.id} />
           </div>
         </CardHeader>
@@ -143,7 +152,14 @@ export default async function FlatPaymentHistoryPage({
               )}
               {flat.additionalCharges.map((c) => (
                 <TableRow key={c.id}>
-                  <TableCell>{c.description}</TableCell>
+                  <TableCell>
+                    {c.description}
+                    {c.previousDueType && (
+                      <Badge variant="outline" className="ml-2">
+                        Previous due
+                      </Badge>
+                    )}
+                  </TableCell>
                   <TableCell>₹{c.amount.toString()}</TableCell>
                   <TableCell>{c.dueDate ? c.dueDate.toLocaleDateString("en-IN") : "—"}</TableCell>
                   <TableCell>

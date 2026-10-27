@@ -104,38 +104,6 @@ export const createCharge = withErrors(async (formData: FormData) => {
   revalidatePath("/admin");
 });
 
-const previousDuesSchema = z.object({
-  flatId: z.string().uuid(),
-  year: z.coerce.number().int().min(2000),
-  amount: z.coerce.number().positive(),
-});
-
-export const addPreviousYearDues = withErrors(async (formData: FormData) => {
-  const { profile: admin, buildingId } = await requireAdminContext();
-  const parsed = previousDuesSchema.parse({
-    flatId: formData.get("flatId"),
-    year: formData.get("year"),
-    amount: formData.get("amount"),
-  });
-  await requireFlatInBuilding(parsed.flatId, buildingId);
-
-  const charge = await prisma.additionalCharge.create({
-    data: {
-      flatId: parsed.flatId,
-      description: `Previous Year Dues (${parsed.year})`,
-      amount: parsed.amount,
-      recordedById: admin.id,
-    },
-  });
-  await logAudit(admin.id, "ADD_PREVIOUS_YEAR_DUES", "AdditionalCharge", charge.id, {
-    year: parsed.year,
-    amount: parsed.amount,
-  }, buildingId);
-
-  revalidatePath(`/admin/payments/${parsed.flatId}`);
-  revalidatePath("/admin");
-});
-
 const markChargePaidSchema = z.object({
   id: z.string().uuid(),
   flatId: z.string().uuid(),

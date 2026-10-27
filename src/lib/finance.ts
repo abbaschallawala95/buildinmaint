@@ -73,7 +73,7 @@ async function loadTransactions(
       id: `charge-${c.id}`,
       date: c.paymentDate ?? c.createdAt,
       description: `${c.description} — ${c.flat.floor.name} / ${c.flat.flatNumber}`,
-      head: c.description,
+      head: c.previousDueType ? `Previous dues — ${c.previousDueType === "MAINTENANCE" ? "maintenance" : "other"}` : c.description,
       amount: Number(c.amount),
       kind: "income" as const,
     })),

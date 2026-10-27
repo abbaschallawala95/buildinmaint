@@ -155,6 +155,8 @@ model AdditionalCharge {
   paymentDate  DateTime?
   recordedById String?
   createdAt    DateTime      @default(now())
+  // Set for dues from before the app (Admin → Maintenance): "MAINTENANCE" | "OTHER". Null = ordinary charge.
+  previousDueType String?
 
   flat       Flat     @relation(fields: [flatId], references: [id], onDelete: Cascade)
   recordedBy Profile? @relation("ChargeRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
