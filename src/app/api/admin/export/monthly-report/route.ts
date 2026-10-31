@@ -4,6 +4,7 @@ import { requireAdminContext } from "@/lib/building-context";
 import { prisma } from "@/lib/prisma";
 import { getFinancialOverview } from "@/lib/finance";
 import { rateForMonth } from "@/lib/rate-history";
+import { paymentState } from "@/lib/maintenance-dues";
 import { buildExcelReport } from "@/lib/export/excel";
 import { buildPdfReport } from "@/lib/export/pdf";
 
@@ -52,8 +53,9 @@ export async function GET(req: NextRequest) {
       month,
       year,
     );
-    const paid = f.payments[0]?.status === "PAID";
-    return [`${f.floor.name} / ${f.flatNumber}`, f.member?.name ?? "Unassigned", rate.toFixed(2), paid ? "Paid" : "Unpaid"];
+    const { paid, remaining, status } = paymentState(rate, f.payments[0]);
+    const label = status === "PAID" ? "Paid" : status === "PARTIAL" ? `Partial (paid ${paid.toFixed(2)}, ${remaining.toFixed(2)} left)` : "Unpaid";
+    return [`${f.floor.name} / ${f.flatNumber}`, f.member?.name ?? "Unassigned", rate.toFixed(2), label];
   });
 
   const transactionRows = overview.monthTransactions.map((t) => [

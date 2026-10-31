@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { rateForMonth } from "@/lib/rate-history";
-import { buildDueSchedule, totalDue } from "@/lib/maintenance-dues";
+import { buildDueSchedule, paymentState, totalDue } from "@/lib/maintenance-dues";
 
 export type Transaction = {
   id: string;
@@ -49,6 +49,7 @@ async function loadTransactions(
     }),
     prisma.electricityBill.findMany({
       where: { status: "PAID", buildingId, ...paidIn },
+      include: { category: true },
       orderBy: newest,
       take,
     }),
@@ -88,8 +89,8 @@ async function loadTransactions(
     ...bills.map((b) => ({
       id: `bill-${b.id}`,
       date: b.paymentDate ?? b.createdAt,
-      description: `${b.type === "LIFT" ? "Lift" : "Common Area"} Electricity Bill`,
-      head: `${b.type === "LIFT" ? "Lift" : "Common Area"} Electricity Bill`,
+      description: `${b.category.name} Electricity Bill`,
+      head: `${b.category.name} Electricity Bill`,
       amount: Number(b.amount),
       kind: "expense" as const,
     })),
@@ -147,6 +148,7 @@ export async function getFinancialOverview(buildingId: string, period?: { month:
     }),
     prisma.electricityBill.findMany({
       where: { status: "UNPAID", dueDate: { lt: now }, buildingId },
+      include: { category: true },
     }),
     loadTransactions(buildingId, { range: monthRange }),
     loadTransactions(buildingId, { take: 10 }),
@@ -174,9 +176,11 @@ export async function getFinancialOverview(buildingId: string, period?: { month:
       effectiveMonth: r.effectiveMonth,
       effectiveYear: r.effectiveYear,
     }));
-  const pendingMaintenanceThisMonth = flats
-    .filter((f) => f.payments.find((p) => p.month === month && p.year === year)?.status !== "PAID")
-    .reduce((sum, f) => sum + rateForMonth(ratesOf(f), month, year), 0);
+  const pendingMaintenanceThisMonth = flats.reduce(
+    (sum, f) =>
+      sum + paymentState(rateForMonth(ratesOf(f), month, year), f.payments.find((p) => p.month === month && p.year === year)).remaining,
+    0,
+  );
   // Same calculation as the Total Dues report: every unpaid month up to now, carried forward.
   const pendingMaintenanceAllMonths = flats.reduce(
     (sum, f) =>

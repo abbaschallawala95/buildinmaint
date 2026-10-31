@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { buildDueSchedule, totalDue } from "@/lib/maintenance-dues";
+import { buildDueSchedule, paymentState, totalDue } from "@/lib/maintenance-dues";
+import { rateForMonth } from "@/lib/rate-history";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Note = { title: string; body: string; tag: string; tone: "alert" | "ok" };
@@ -19,7 +20,7 @@ export async function Noticeboard({ buildingId, month, year }: { buildingId: str
       orderBy: [{ floor: { sortOrder: "desc" } }, { flatNumber: "asc" }],
       include: { floor: true, member: true, payments: true, maintenanceRates: true },
     }),
-    prisma.electricityBill.findMany({ where: { buildingId, status: "UNPAID", dueDate: { lt: now } }, orderBy: { dueDate: "asc" }, take: 1 }),
+    prisma.electricityBill.findMany({ where: { buildingId, status: "UNPAID", dueDate: { lt: now } }, include: { category: true }, orderBy: { dueDate: "asc" }, take: 1 }),
     prisma.additionalCharge.findFirst({ where: { flat: { floor: { buildingId } } }, orderBy: { createdAt: "desc" } }),
   ]);
 
@@ -28,7 +29,7 @@ export async function Noticeboard({ buildingId, month, year }: { buildingId: str
   if (bill) {
     const days = Math.max(1, Math.floor((now.getTime() - bill.dueDate.getTime()) / 86_400_000));
     notes.push({
-      title: `${bill.type === "LIFT" ? "Lift" : "Common area"} bill`,
+      title: `${bill.category.name} bill`,
       body: `${rupees(Number(bill.amount))} was due on ${date(bill.dueDate)} and is still unpaid.`,
       tag: `${days} day${days === 1 ? "" : "s"} overdue`,
       tone: "alert",
@@ -72,7 +73,9 @@ export async function Noticeboard({ buildingId, month, year }: { buildingId: str
 
   const wall = flats.map((f) => {
     const p = f.payments.find((x) => x.month === month && x.year === year);
-    return { id: f.id, label: f.flatNumber, title: `${f.floor.name} / ${f.flatNumber}`, paid: p?.status === "PAID", hasRate: f.maintenanceRates.length > 0 };
+    const rate = rateForMonth(f.maintenanceRates.map((r) => ({ amount: Number(r.amount), effectiveMonth: r.effectiveMonth, effectiveYear: r.effectiveYear })), month, year);
+    // Part-paid counts as not paid yet.
+    return { id: f.id, label: f.flatNumber, title: `${f.floor.name} / ${f.flatNumber}`, paid: paymentState(rate, p).status === "PAID", hasRate: f.maintenanceRates.length > 0 };
   });
   const paidCount = wall.filter((w) => w.paid).length;
 

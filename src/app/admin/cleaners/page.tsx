@@ -10,7 +10,7 @@ import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { CleanerDialog } from "./cleaner-dialog";
 import { CleanerPaymentsDialog } from "./payments-dialog";
 import { deleteCleaner } from "./actions";
-import { rateForMonth } from "@/lib/rate-history";
+import { cleanerMonth } from "@/lib/cleaner-advance";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -33,7 +33,8 @@ export default async function CleanersPage({
     orderBy: { createdAt: "asc" },
     include: {
       salaryHistory: true,
-      payments: { where: { month, year }, include: { entries: { orderBy: { paymentDate: "asc" } } } },
+      // Every month, so advances paid earlier can be carried into this one.
+      payments: { include: { entries: { orderBy: { paymentDate: "asc" } } } },
     },
   });
 
@@ -79,6 +80,7 @@ export default async function CleanersPage({
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Due</TableHead>
+                <TableHead>Advance used</TableHead>
                 <TableHead>Paid</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -87,29 +89,34 @@ export default async function CleanersPage({
             <TableBody>
               {cleaners.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
                     No cleaners added yet.
                   </TableCell>
                 </TableRow>
               )}
               {cleaners.map((cleaner) => {
-                const due = rateForMonth(
+                const { due, carriedIn, paid, carriedOut, status } = cleanerMonth(
                   cleaner.salaryHistory.map((h) => ({
                     amount: Number(h.amount),
                     effectiveMonth: h.effectiveMonth,
                     effectiveYear: h.effectiveYear,
                   })),
+                  cleaner.payments.flatMap((p) => p.entries.map((e) => ({ month: p.month, year: p.year, amount: Number(e.amount) }))),
                   month,
                   year,
                 );
-                const entries = cleaner.payments[0]?.entries ?? [];
-                const paid = entries.reduce((sum, e) => sum + Number(e.amount), 0);
-                const status = paid <= 0 ? "UNPAID" : paid >= due ? "PAID" : "PARTIAL";
+                const entries = cleaner.payments.find((p) => p.month === month && p.year === year)?.entries ?? [];
                 return (
                   <TableRow key={cleaner.id}>
                     <TableCell>{cleaner.name}</TableCell>
                     <TableCell>₹{due.toFixed(2)}</TableCell>
-                    <TableCell>₹{paid.toFixed(2)}</TableCell>
+                    <TableCell>{carriedIn > 0 ? `₹${Math.min(carriedIn, due).toFixed(2)}` : "—"}</TableCell>
+                    <TableCell>
+                      ₹{paid.toFixed(2)}
+                      {carriedOut > 0 && (
+                        <span className="block text-xs text-muted-foreground">₹{carriedOut.toFixed(2)} extra → next month</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={status === "PAID" ? "default" : status === "PARTIAL" ? "outline" : "secondary"}>
                         {status === "PAID" ? "Paid" : status === "PARTIAL" ? "Partial" : "Unpaid"}
@@ -124,6 +131,7 @@ export default async function CleanersPage({
                           year={year}
                           due={due}
                           paid={paid}
+                          carriedIn={carriedIn}
                           entries={entries.map((e) => ({
                             id: e.id,
                             amount: e.amount.toString(),

@@ -2,7 +2,8 @@ import { getCurrentProfile } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { getFinancialOverview } from "@/lib/finance";
-import { buildDueSchedule, totalDue } from "@/lib/maintenance-dues";
+import { buildDueSchedule, paymentState, totalDue } from "@/lib/maintenance-dues";
+import { rateForMonth } from "@/lib/rate-history";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +53,12 @@ export default async function MemberDashboardPage({
   const currentPayment = flat.payments.find(
     (p) => p.month === now.getMonth() + 1 && p.year === now.getFullYear(),
   );
-  const isCurrentPaid = currentPayment?.status === "PAID";
+  const currentRate = rateForMonth(
+    flat.maintenanceRates.map((r) => ({ amount: Number(r.amount), effectiveMonth: r.effectiveMonth, effectiveYear: r.effectiveYear })),
+    now.getMonth() + 1,
+    now.getFullYear(),
+  );
+  const current = paymentState(currentRate, currentPayment);
   const pendingCharges = flat.additionalCharges
     .filter((c) => c.status !== "PAID")
     .reduce((sum, c) => sum + Number(c.amount), 0);
@@ -114,8 +120,8 @@ export default async function MemberDashboardPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Badge variant={isCurrentPaid ? "default" : "secondary"} className="text-sm">
-              {isCurrentPaid ? "Paid" : "Unpaid"}
+            <Badge variant={current.status === "PAID" ? "default" : current.status === "PARTIAL" ? "outline" : "secondary"} className="text-sm">
+              {current.status === "PAID" ? "Paid" : current.status === "PARTIAL" ? `Partial · ₹${current.remaining.toLocaleString("en-IN")} remaining` : "Unpaid"}
             </Badge>
           </CardContent>
         </Card>
@@ -222,7 +228,12 @@ export default async function MemberDashboardPage({
                   </TableCell>
                   <TableCell>₹{p.amount.toFixed(2)}</TableCell>
                   <TableCell>
-                    <Badge variant={p.status === "PAID" ? "default" : "secondary"}>{p.status}</Badge>
+                    <Badge variant={p.status === "PAID" ? "default" : p.status === "PARTIAL" ? "outline" : "secondary"}>
+                      {p.status === "PAID" ? "Paid" : p.status === "PARTIAL" ? "Partial" : "Unpaid"}
+                    </Badge>
+                    {p.status === "PARTIAL" && (
+                      <span className="block text-xs text-muted-foreground">₹{p.remaining.toFixed(2)} remaining of ₹{p.rate.toFixed(2)}</span>
+                    )}
                   </TableCell>
                   <TableCell>{p.paymentDate ? p.paymentDate.toLocaleDateString("en-IN") : "—"}</TableCell>
                   <TableCell>{p.paymentMethod ?? "—"}</TableCell>

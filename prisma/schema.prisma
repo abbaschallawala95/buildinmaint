@@ -29,11 +29,6 @@ enum PaymentMethod {
   OTHER
 }
 
-enum ElectricityBillType {
-  LIFT
-  COMMON_AREA
-}
-
 // One row per building/society managed in this app. SUPER_ADMIN profiles have no
 // buildingId (buildingId null) and operate across all buildings via a selected-building
 // switcher; BUILDING_ADMIN and MEMBER profiles belong to exactly one building.
@@ -42,40 +37,41 @@ model Building {
   name      String
   createdAt DateTime @default(now())
 
-  profiles          Profile[]
-  floors            Floor[]
-  cleaners          Cleaner[]
-  expenseCategories ExpenseCategory[]
-  expenses          Expense[]
-  electricityBills  ElectricityBill[]
-  settings          Settings?
-  auditLogs         AuditLog[]
-  sharedAnalytics   SharedAnalytics[]
+  profiles                  Profile[]
+  floors                    Floor[]
+  cleaners                  Cleaner[]
+  expenseCategories         ExpenseCategory[]
+  expenses                  Expense[]
+  electricityBills          ElectricityBill[]
+  settings                  Settings?
+  auditLogs                 AuditLog[]
+  sharedAnalytics           SharedAnalytics[]
+  electricityBillCategories ElectricityBillCategory[]
 
   @@map("buildings")
 }
 
 // Mirrors a Supabase auth.users row; authUserId is that user's id.
 model Profile {
-  id         String   @id @default(uuid())
-  authUserId String   @unique
-  name       String
-  email      String   @unique
-  phone      String?
-  role       Role     @default(MEMBER)
-  isActive   Boolean  @default(true)
-  buildingId String?
-  mustChangePassword Boolean @default(false)
-  createdAt  DateTime @default(now())
+  id                 String   @id @default(uuid())
+  authUserId         String   @unique
+  name               String
+  email              String   @unique
+  phone              String?
+  role               Role     @default(MEMBER)
+  isActive           Boolean  @default(true)
+  buildingId         String?
+  mustChangePassword Boolean  @default(false)
+  createdAt          DateTime @default(now())
 
-  building                Building?            @relation(fields: [buildingId], references: [id], onDelete: Restrict)
-  flat                    Flat?                @relation("FlatMember")
-  recordedPayments        MaintenancePayment[]   @relation("PaymentRecordedBy")
-  recordedCharges         AdditionalCharge[]     @relation("ChargeRecordedBy")
-  recordedExpenses        Expense[]              @relation("ExpenseRecordedBy")
-  recordedBills           ElectricityBill[]      @relation("BillRecordedBy")
-  recordedCleanerPayments CleanerPaymentEntry[]  @relation("CleanerPaymentRecordedBy")
-  auditLogs               AuditLog[]             @relation("AuditActor")
+  building                Building?             @relation(fields: [buildingId], references: [id], onDelete: Restrict)
+  flat                    Flat?                 @relation("FlatMember")
+  recordedPayments        MaintenancePayment[]  @relation("PaymentRecordedBy")
+  recordedCharges         AdditionalCharge[]    @relation("ChargeRecordedBy")
+  recordedExpenses        Expense[]             @relation("ExpenseRecordedBy")
+  recordedBills           ElectricityBill[]     @relation("BillRecordedBy")
+  recordedCleanerPayments CleanerPaymentEntry[] @relation("CleanerPaymentRecordedBy")
+  auditLogs               AuditLog[]            @relation("AuditActor")
 
   @@map("profiles")
 }
@@ -99,8 +95,8 @@ model Flat {
   monthlyMaintenanceAmount Decimal @db.Decimal(10, 2)
   memberId                 String? @unique
 
-  floor             Floor                @relation(fields: [floorId], references: [id], onDelete: Cascade)
-  member            Profile?             @relation("FlatMember", fields: [memberId], references: [id], onDelete: SetNull)
+  floor             Floor                 @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  member            Profile?              @relation("FlatMember", fields: [memberId], references: [id], onDelete: SetNull)
   payments          MaintenancePayment[]
   additionalCharges AdditionalCharge[]
   maintenanceRates  FlatMaintenanceRate[]
@@ -146,15 +142,15 @@ model MaintenancePayment {
 }
 
 model AdditionalCharge {
-  id           String        @id @default(uuid())
-  flatId       String
-  description  String
-  amount       Decimal       @db.Decimal(10, 2)
-  status       PaymentStatus @default(UNPAID)
-  dueDate      DateTime?
-  paymentDate  DateTime?
-  recordedById String?
-  createdAt    DateTime      @default(now())
+  id              String        @id @default(uuid())
+  flatId          String
+  description     String
+  amount          Decimal       @db.Decimal(10, 2)
+  status          PaymentStatus @default(UNPAID)
+  dueDate         DateTime?
+  paymentDate     DateTime?
+  recordedById    String?
+  createdAt       DateTime      @default(now())
   // Set for dues from before the app (Admin → Maintenance): "MAINTENANCE" | "OTHER". Null = ordinary charge.
   previousDueType String?
 
@@ -194,22 +190,36 @@ model Expense {
 }
 
 model ElectricityBill {
-  id                 String              @id @default(uuid())
+  id                 String        @id @default(uuid())
   buildingId         String
-  type               ElectricityBillType
+  categoryId         String
   billingPeriodStart DateTime
   billingPeriodEnd   DateTime
-  amount             Decimal             @db.Decimal(10, 2)
+  amount             Decimal       @db.Decimal(10, 2)
   dueDate            DateTime
-  status             PaymentStatus       @default(UNPAID)
+  status             PaymentStatus @default(UNPAID)
   paymentDate        DateTime?
   recordedById       String?
-  createdAt          DateTime            @default(now())
+  createdAt          DateTime      @default(now())
 
-  building   Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
-  recordedBy Profile? @relation("BillRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+  building   Building                @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  category   ElectricityBillCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  recordedBy Profile?                @relation("BillRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
 
   @@map("electricity_bills")
+}
+
+// Per-building electricity bill types (e.g. Lift, Common Area, Water Pump). A category in use can't be deleted.
+model ElectricityBillCategory {
+  id         String @id @default(uuid())
+  buildingId String
+  name       String
+
+  building Building          @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  bills    ElectricityBill[]
+
+  @@unique([buildingId, name])
+  @@map("electricity_bill_categories")
 }
 
 model Cleaner {

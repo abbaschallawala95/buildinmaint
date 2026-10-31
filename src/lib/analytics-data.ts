@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getYearTransactions } from "@/lib/finance";
 import { rateForMonth } from "@/lib/rate-history";
+import { paymentState } from "@/lib/maintenance-dues";
 import { buildYearAnalytics, compareMonths, type Period } from "@/lib/analytics";
 
 export const FIRST_YEAR = 2026;
@@ -40,9 +41,10 @@ export async function getAnalytics(buildingId: string, period: Period, compare: 
       );
       if (rate <= 0) continue;
       expected += rate;
-      const paid = f.payments.find((p) => p.month === month);
-      if (paid) collected += Number(paid.amount);
-      else behind.push(`${f.floor.name} / ${f.flatNumber}`);
+      const state = paymentState(rate, f.payments.find((p) => p.month === month));
+      collected += state.paid;
+      // A part-paid flat is still behind.
+      if (state.remaining > 0) behind.push(`${f.floor.name} / ${f.flatNumber}`);
     }
     return { month, expected, collected, behind };
   });

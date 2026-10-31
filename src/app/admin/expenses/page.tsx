@@ -6,8 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { ExpenseDialog } from "./expense-dialog";
-import { CategoriesDialog } from "./categories-dialog";
-import { deleteExpense } from "./actions";
+import { CategoriesDialog } from "@/components/categories-dialog";
+import { createCategory, deleteCategory, deleteExpense, renameCategory } from "./actions";
 
 export default async function ExpensesPage() {
   const { buildingId } = await requireAdminContext();
@@ -37,7 +37,11 @@ export default async function ExpensesPage() {
         </div>
         <div className="flex gap-2">
           <CategoriesDialog
-            categories={categories.map((c) => ({ id: c.id, name: c.name, expenseCount: c._count.expenses }))}
+            title="Expense Categories"
+            categories={categories.map((c) => ({ id: c.id, name: c.name, useCount: c._count.expenses }))}
+            createAction={createCategory}
+            renameAction={renameCategory}
+            deleteAction={deleteCategory}
           />
           <ExpenseDialog categories={categories} trigger={<Button>Add Expense</Button>} />
         </div>

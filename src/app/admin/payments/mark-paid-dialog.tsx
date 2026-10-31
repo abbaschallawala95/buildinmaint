@@ -27,27 +27,35 @@ export function MarkPaidDialog({
   month,
   year,
   defaultAmount,
+  alreadyPaid = 0,
 }: {
   flatId: string;
   month: number;
   year: number;
   defaultAmount: string;
+  /** set when the month is Partial: the amount entered is added on top of this */
+  alreadyPaid?: number;
 }) {
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const adding = alreadyPaid > 0;
   const [method, setMethod] = useState("CASH");
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm">Mark Paid</Button>} />
+      <DialogTrigger render={<Button size="sm">{adding ? "Add Payment" : "Mark Paid"}</Button>} />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Record Payment</DialogTitle>
+          <DialogTitle>{adding ? "Add Remaining Payment" : "Record Payment"}</DialogTitle>
         </DialogHeader>
         <form
           onSubmit={async (e) => {
             e.preventDefault();
             const formData = new FormData(e.currentTarget);
-            if (await succeeded(markPaymentPaid(formData))) setOpen(false);
+            setSaving(true);
+            const ok = await succeeded(markPaymentPaid(formData));
+            setSaving(false);
+            if (ok) setOpen(false);
           }}
           className="space-y-4"
         >
@@ -55,6 +63,12 @@ export function MarkPaidDialog({
           <input type="hidden" name="month" value={month} />
           <input type="hidden" name="year" value={year} />
           <input type="hidden" name="paymentMethod" value={method} />
+          {adding && <input type="hidden" name="addToExisting" value="1" />}
+          {adding && (
+            <p className="text-sm text-muted-foreground">
+              ₹{alreadyPaid.toFixed(2)} already paid for this month. The amount below is added to it.
+            </p>
+          )}
           <div className="space-y-2">
             <Label htmlFor="amount">Amount</Label>
             <Input
@@ -100,8 +114,8 @@ export function MarkPaidDialog({
             <Label htmlFor="notes">Notes</Label>
             <Input id="notes" name="notes" placeholder="Optional" />
           </div>
-          <Button type="submit" className="w-full">
-            Save Payment
+          <Button type="submit" className="w-full" disabled={saving}>
+            {saving ? "Saving…" : "Save Payment"}
           </Button>
         </form>
       </DialogContent>

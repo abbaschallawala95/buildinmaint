@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { rateForMonth } from "@/lib/rate-history";
+import { paymentState } from "@/lib/maintenance-dues";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const rupees = (n: number) => `₹${n.toLocaleString("en-IN")}`;
@@ -20,14 +21,15 @@ export async function CollectionRing({ buildingId, month, year }: { buildingId: 
   let collected = 0;
   const unpaid: { id: string; label: string; title: string }[] = [];
   for (const f of flats) {
-    expected += rateForMonth(
+    const rate = rateForMonth(
       f.maintenanceRates.map((r) => ({ amount: Number(r.amount), effectiveMonth: r.effectiveMonth, effectiveYear: r.effectiveYear })),
       month,
       year,
     );
-    const paid = f.payments.find((p) => p.status === "PAID");
-    if (paid) collected += Number(paid.amount);
-    else unpaid.push({ id: f.id, label: f.flatNumber, title: `${f.floor.name} / ${f.flatNumber}` });
+    expected += rate;
+    const state = paymentState(rate, f.payments[0]);
+    collected += state.paid;
+    if (state.remaining > 0) unpaid.push({ id: f.id, label: f.flatNumber, title: `${f.floor.name} / ${f.flatNumber}` });
   }
   const pct = expected > 0 ? Math.min(100, Math.round((collected / expected) * 100)) : 0;
   const monthName = MONTHS[month - 1];

@@ -109,7 +109,12 @@ export default async function FlatPaymentHistoryPage({
                   </TableCell>
                   <TableCell>₹{p.amount.toFixed(2)}</TableCell>
                   <TableCell>
-                    <Badge variant={p.status === "PAID" ? "default" : "secondary"}>{p.status}</Badge>
+                    <Badge variant={p.status === "PAID" ? "default" : p.status === "PARTIAL" ? "outline" : "secondary"}>
+                      {p.status === "PAID" ? "Paid" : p.status === "PARTIAL" ? "Partial" : "Unpaid"}
+                    </Badge>
+                    {p.status === "PARTIAL" && (
+                      <span className="block text-xs text-muted-foreground">₹{p.remaining.toFixed(2)} remaining of ₹{p.rate.toFixed(2)}</span>
+                    )}
                   </TableCell>
                   <TableCell>{p.paymentDate ? p.paymentDate.toLocaleDateString("en-IN") : "—"}</TableCell>
                   <TableCell>{p.paymentMethod ?? "—"}</TableCell>

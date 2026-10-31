@@ -221,7 +221,7 @@ export default async function AdminDashboardPage({
             {overdueCount === 0 && <p className="text-sm text-muted-foreground">Nothing overdue.</p>}
             {overview.overdueBills.map((b) => (
               <div key={b.id} className="flex items-center justify-between text-sm">
-                <span>{b.type === "LIFT" ? "Lift" : "Common Area"} Electricity Bill</span>
+                <span>{b.category.name} Electricity Bill</span>
                 <Badge variant="secondary">₹{b.amount.toString()} due {b.dueDate.toLocaleDateString("en-IN")}</Badge>
               </div>
             ))}

@@ -17,7 +17,7 @@ const markPaidSchema = z.object({
   flatId: z.string().uuid(),
   month: z.coerce.number().int().min(1).max(12),
   year: z.coerce.number().int().min(2000),
-  amount: z.coerce.number().nonnegative(),
+  amount: z.coerce.number().positive(),
   paymentDate: z.string().min(1),
   paymentMethod: z.enum(["CASH", "UPI", "BANK_TRANSFER", "CHEQUE", "OTHER"]),
   notes: z.string().optional(),
@@ -36,6 +36,8 @@ export const markPaymentPaid = withErrors(async (formData: FormData) => {
     notes: formData.get("notes") || undefined,
   });
   await requireFlatInBuilding(parsed.flatId, buildingId);
+  // "Add Payment" on a Partial month adds the installment to what was already paid.
+  const adding = formData.get("addToExisting") === "1";
 
   const payment = await prisma.maintenancePayment.upsert({
     where: { flatId_month_year: { flatId: parsed.flatId, month: parsed.month, year: parsed.year } },
@@ -51,7 +53,7 @@ export const markPaymentPaid = withErrors(async (formData: FormData) => {
       recordedById: admin.id,
     },
     update: {
-      amount: parsed.amount,
+      amount: adding ? { increment: parsed.amount } : parsed.amount,
       status: "PAID",
       paymentDate: new Date(parsed.paymentDate),
       paymentMethod: parsed.paymentMethod,
@@ -59,14 +61,19 @@ export const markPaymentPaid = withErrors(async (formData: FormData) => {
       recordedById: admin.id,
     },
   });
-  await logAudit(admin.id, "MARK_PAID", "MaintenancePayment", payment.id, {
+  await logAudit(admin.id, adding ? "ADD_PAYMENT" : "MARK_PAID", "MaintenancePayment", payment.id, {
     month: parsed.month,
     year: parsed.year,
     amount: parsed.amount,
+    totalPaid: payment.amount.toString(),
+    method: parsed.paymentMethod,
   }, buildingId);
 
   revalidatePath("/admin/payments");
+  revalidatePath(`/admin/payments/${parsed.flatId}`);
+  revalidatePath("/admin/maintenance");
   revalidatePath("/admin");
+  revalidatePath("/member");
 });
 
 const chargeSchema = z.object({

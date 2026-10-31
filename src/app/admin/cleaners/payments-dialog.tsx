@@ -46,6 +46,7 @@ export function CleanerPaymentsDialog({
   year,
   due,
   paid,
+  carriedIn = 0,
   entries,
   trigger,
 }: {
@@ -55,12 +56,15 @@ export function CleanerPaymentsDialog({
   year: number;
   due: number;
   paid: number;
+  /** advance left over from earlier months that already covers part of this month */
+  carriedIn?: number;
   entries: CleanerPaymentEntryRow[];
   trigger: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [method, setMethod] = useState("CASH");
-  const remaining = Math.max(due - paid, 0);
+  const remaining = Math.max(due - carriedIn - paid, 0);
+  const carriedOut = Math.max(carriedIn + paid - due, 0);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -84,6 +88,12 @@ export function CleanerPaymentsDialog({
             <div className="font-medium">₹{remaining.toFixed(2)}</div>
           </div>
         </div>
+        {(carriedIn > 0 || carriedOut > 0) && (
+          <p className="text-xs text-muted-foreground">
+            {carriedIn > 0 && `₹${carriedIn.toFixed(2)} already covered by an advance from earlier months. `}
+            {carriedOut > 0 && `₹${carriedOut.toFixed(2)} extra carries to next month.`}
+          </p>
+        )}
 
         {entries.length > 0 && (
           <div className="space-y-2">

@@ -1,7 +1,7 @@
 // Self-check for the dues schedule behind Outstanding Dues and the Total Dues report.
 // Usage: npx tsx scripts/check-dues.ts
 import assert from "node:assert";
-import { buildDueSchedule, totalDue, splitUnpaidCharges } from "../src/lib/maintenance-dues";
+import { buildDueSchedule, totalDue, splitUnpaidCharges, paymentState } from "../src/lib/maintenance-dues";
 import { monthParam } from "../src/lib/utils";
 
 const rates = [
@@ -22,10 +22,11 @@ assert.deepEqual(
 );
 assert.equal(totalDue(schedule), 1000 + 1000 + 1500 + 1500, "each unpaid month uses its own rate");
 
-// An UNPAID payment row is still due; a paid amount different from the rate is kept as paid.
+// An UNPAID payment row is still due; paying less than the rate leaves the rest due (Partial).
 const s2 = buildDueSchedule(rates, [{ ...paid(11, 2025, 800) }, { ...paid(12, 2025, 1000), status: "UNPAID" }], 12, 2025);
-assert.equal(totalDue(s2), 1000, "UNPAID row counts as due");
+assert.equal(totalDue(s2), 200 + 1000, "UNPAID row counts as due, plus what a short month still owes");
 assert.equal(s2[0].amount, 800, "a PAID month shows what was actually paid");
+assert.equal(s2[0].status, "PARTIAL");
 
 assert.deepEqual(buildDueSchedule([], [], 4, 2026), [], "a flat with no rate history owes nothing");
 
@@ -42,4 +43,15 @@ const split = splitUnpaidCharges([
   { amount: 200, status: "PAID", previousDueType: null },
 ]);
 assert.deepEqual(split, { previous: 6500, other: 300 });
+// Partial payments: 100 paid against 600 leaves 500 due; the remainder shows in dues.
+assert.deepEqual(paymentState(600, { status: "PAID", amount: 100 }), { paid: 100, remaining: 500, status: "PARTIAL" });
+assert.deepEqual(paymentState(600, { status: "PAID", amount: 600 }), { paid: 600, remaining: 0, status: "PAID" });
+assert.deepEqual(paymentState(600, { status: "PAID", amount: 700 }), { paid: 700, remaining: 0, status: "PAID" });
+assert.deepEqual(paymentState(600, undefined), { paid: 0, remaining: 600, status: "UNPAID" });
+assert.deepEqual(paymentState(600, { status: "UNPAID", amount: 0 }), { paid: 0, remaining: 600, status: "UNPAID" });
+const r600 = [{ amount: 600, effectiveMonth: 1, effectiveYear: 2026 }];
+const partial = buildDueSchedule(r600, [{ ...paid(1, 2026, 100) }, { ...paid(2, 2026, 600) }], 3, 2026);
+assert.deepEqual(partial.map((s) => s.status), ["PARTIAL", "PAID", "UNPAID"]);
+assert.deepEqual(partial.map((s) => s.remaining), [500, 0, 600]);
+assert.equal(totalDue(partial), 1100, "partial remainder + unpaid month");
 console.log("OK");

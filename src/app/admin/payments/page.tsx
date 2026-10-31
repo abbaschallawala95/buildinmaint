@@ -11,6 +11,7 @@ import { MarkPaidDialog } from "./mark-paid-dialog";
 import { markPaymentUnpaid } from "./actions";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { rateForMonth } from "@/lib/rate-history";
+import { paymentState } from "@/lib/maintenance-dues";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -96,7 +97,6 @@ export default async function PaymentsPage({
               )}
               {flats.map((flat) => {
                 const payment = flat.payments[0];
-                const isPaid = payment?.status === "PAID";
                 const rate = rateForMonth(
                   flat.maintenanceRates.map((r) => ({
                     amount: Number(r.amount),
@@ -106,6 +106,7 @@ export default async function PaymentsPage({
                   month,
                   year,
                 );
+                const { paid, remaining, status } = paymentState(rate, payment);
                 return (
                   <TableRow key={flat.id}>
                     <TableCell>
@@ -114,17 +115,34 @@ export default async function PaymentsPage({
                       </Link>
                     </TableCell>
                     <TableCell>{flat.member?.name ?? "Unassigned"}</TableCell>
-                    <TableCell>₹{rate.toFixed(2)}</TableCell>
                     <TableCell>
-                      <Badge variant={isPaid ? "default" : "secondary"}>
-                        {isPaid ? "Paid" : "Unpaid"}
+                      ₹{rate.toFixed(2)}
+                      {status === "PARTIAL" && (
+                        <span className="block text-xs text-muted-foreground">
+                          ₹{paid.toFixed(2)} paid · ₹{remaining.toFixed(2)} remaining
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={status === "PAID" ? "default" : status === "PARTIAL" ? "outline" : "secondary"}>
+                        {status === "PAID" ? "Paid" : status === "PARTIAL" ? "Partial" : "Unpaid"}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       {payment?.paymentDate ? payment.paymentDate.toLocaleDateString("en-IN") : "—"}
                     </TableCell>
                     <TableCell className="text-right">
-                      {isPaid ? (
+                      <div className="flex justify-end gap-2">
+                      {status === "PARTIAL" && (
+                        <MarkPaidDialog
+                          flatId={flat.id}
+                          month={month}
+                          year={year}
+                          defaultAmount={remaining.toFixed(2)}
+                          alreadyPaid={paid}
+                        />
+                      )}
+                      {status !== "UNPAID" ? (
                         <form action={markPaymentUnpaid} className="inline">
                           <input type="hidden" name="flatId" value={flat.id} />
                           <input type="hidden" name="month" value={month} />
@@ -145,6 +163,7 @@ export default async function PaymentsPage({
                           defaultAmount={rate.toFixed(2)}
                         />
                       )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

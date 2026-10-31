@@ -1,10 +1,17 @@
 import { rateForMonth } from "@/lib/rate-history";
 
+export type PaymentStatusLabel = "PAID" | "PARTIAL" | "UNPAID";
+
 export type MonthlyDue = {
   month: number;
   year: number;
+  /** what was paid if anything was, otherwise the rate */
   amount: number;
-  status: "PAID" | "UNPAID";
+  /** that month's rate */
+  rate: number;
+  paid: number;
+  remaining: number;
+  status: PaymentStatusLabel;
   paymentDate: Date | null;
   paymentMethod: string | null;
 };
@@ -18,6 +25,17 @@ type PaymentRow = {
   paymentDate: Date | null;
   paymentMethod: string | null;
 };
+
+// One month's maintenance against its rate: a PAID row for less than the rate is Partial and
+// the rest is still due. Every screen that shows paid/unpaid goes through this.
+export function paymentState(
+  rate: number,
+  payment: { status: string; amount: number | { toString(): string } } | undefined,
+): { paid: number; remaining: number; status: PaymentStatusLabel } {
+  const paid = payment?.status === "PAID" ? Number(payment.amount) : 0;
+  const remaining = Math.max(0, rate - paid);
+  return { paid, remaining, status: paid <= 0 ? "UNPAID" : remaining > 0 ? "PARTIAL" : "PAID" };
+}
 
 // Builds one row per month from the flat's earliest rate history entry through the given
 // month/year (inclusive), so a member can see every due month since the flat started — not
@@ -44,25 +62,18 @@ export function buildDueSchedule(
   let year = start.effectiveYear;
   while (year < uptoYear || (year === uptoYear && month <= uptoMonth)) {
     const payment = paymentByPeriod.get(`${month}-${year}`);
-    if (payment?.status === "PAID") {
-      schedule.push({
-        month,
-        year,
-        amount: payment.amount,
-        status: "PAID",
-        paymentDate: payment.paymentDate,
-        paymentMethod: payment.paymentMethod,
-      });
-    } else {
-      schedule.push({
-        month,
-        year,
-        amount: rateForMonth(rateHistory, month, year),
-        status: "UNPAID",
-        paymentDate: null,
-        paymentMethod: null,
-      });
-    }
+    const rate = rateForMonth(rateHistory, month, year);
+    const state = paymentState(rate, payment);
+    const recorded = state.status !== "UNPAID";
+    schedule.push({
+      month,
+      year,
+      amount: recorded ? state.paid : rate,
+      rate,
+      ...state,
+      paymentDate: recorded ? (payment?.paymentDate ?? null) : null,
+      paymentMethod: recorded ? (payment?.paymentMethod ?? null) : null,
+    });
     month += 1;
     if (month > 12) {
       month = 1;
@@ -73,7 +84,7 @@ export function buildDueSchedule(
 }
 
 export function totalDue(schedule: MonthlyDue[]): number {
-  return schedule.filter((s) => s.status === "UNPAID").reduce((sum, s) => sum + s.amount, 0);
+  return schedule.reduce((sum, s) => sum + s.remaining, 0);
 }
 
 // Unpaid additional charges split into previous (pre-app) dues and everything else.

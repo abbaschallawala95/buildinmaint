@@ -22,12 +22,14 @@ import { createBill, updateBill } from "./actions";
 import { succeeded } from "@/lib/toast-result";
 
 export function BillDialog({
+  categories,
   bill,
   trigger,
 }: {
+  categories: { id: string; name: string }[];
   bill?: {
     id: string;
-    type: "LIFT" | "COMMON_AREA";
+    categoryId: string;
     billingPeriodStart: string;
     billingPeriodEnd: string;
     amount: string | number;
@@ -36,7 +38,7 @@ export function BillDialog({
   trigger: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const [type, setType] = useState<"LIFT" | "COMMON_AREA">(bill?.type ?? "LIFT");
+  const [categoryId, setCategoryId] = useState(bill?.categoryId ?? categories[0]?.id ?? "");
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -54,22 +56,29 @@ export function BillDialog({
           className="space-y-4"
         >
           {bill && <input type="hidden" name="id" value={bill.id} />}
-          <input type="hidden" name="type" value={type} />
+          <input type="hidden" name="categoryId" value={categoryId} />
           <div className="space-y-2">
-            <Label>Type</Label>
-            <Select
-              items={{ LIFT: "Lift", COMMON_AREA: "Common Area" }}
-              value={type}
-              onValueChange={(v) => v && setType(v as "LIFT" | "COMMON_AREA")}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="LIFT">Lift</SelectItem>
-                <SelectItem value="COMMON_AREA">Common Area</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label>Category</Label>
+            {categories.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Add a category first with the Categories button.</p>
+            ) : (
+              <Select
+                items={Object.fromEntries(categories.map((c) => [c.id, c.name]))}
+                value={categoryId}
+                onValueChange={(v) => v && setCategoryId(v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
@@ -109,7 +118,7 @@ export function BillDialog({
             <Label htmlFor="dueDate">Due Date</Label>
             <Input id="dueDate" name="dueDate" type="date" defaultValue={bill?.dueDate} required />
           </div>
-          <Button type="submit" className="w-full">
+          <Button type="submit" className="w-full" disabled={!categoryId}>
             Save
           </Button>
         </form>
