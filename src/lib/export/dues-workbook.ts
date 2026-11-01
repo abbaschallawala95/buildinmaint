@@ -70,7 +70,7 @@ function money(cell: ExcelJS.Cell, value: number, highlight = true) {
 export async function buildDuesWorkbook(report: DuesReport, buildingName: string, asOf: string): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Build Maintain";
-  const subtitle = `${buildingName} · as of ${asOf}`;
+  const subtitle = `${buildingName} · dues up to ${asOf}`;
   const { totals } = report;
   const otherTotal = totals.other.reduce((s, o) => s + o.amount, 0);
 

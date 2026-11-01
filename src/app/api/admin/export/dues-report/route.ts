@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { buildDuesReport } from "@/lib/dues-report";
 import { buildDuesWorkbook } from "@/lib/export/dues-workbook";
 import { buildPdfReport } from "@/lib/export/pdf";
-import { todayValue } from "@/lib/utils";
+import { monthParam } from "@/lib/utils";
 
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const KIND = { MONTHLY: "Monthly maintenance", PREVIOUS_MAINTENANCE: "Previous dues - maintenance", OTHER: "Other dues" } as const;
 const rs = (n: number) => `Rs. ${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -20,6 +21,13 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const format = searchParams.get("format") === "pdf" ? "pdf" : "excel";
   const now = new Date();
+  // Dues up to the picked month (default: this month); a future month is capped at this month.
+  let month = monthParam(searchParams.get("month"));
+  let year = Number(searchParams.get("year")) || now.getFullYear();
+  if (year * 12 + month > now.getFullYear() * 12 + now.getMonth() + 1) {
+    month = now.getMonth() + 1;
+    year = now.getFullYear();
+  }
 
   const [flats, building] = await Promise.all([
     prisma.flat.findMany({
@@ -44,12 +52,12 @@ export async function GET(req: NextRequest) {
       payments: f.payments.map((p) => ({ ...p, amount: Number(p.amount) })),
       charges: f.additionalCharges.map((c) => ({ description: c.description, amount: Number(c.amount), previousDueType: c.previousDueType })),
     })),
-    now.getMonth() + 1,
-    now.getFullYear(),
+    month,
+    year,
   );
-  const asOf = now.toLocaleDateString("en-IN");
+  const asOf = `${MONTH_ABBR[month - 1]} ${year}`;
   const buildingName = building?.name ?? "Building";
-  const filename = `dues-report-${todayValue()}`;
+  const filename = `dues-report-${year}-${String(month).padStart(2, "0")}`;
 
   if (format === "pdf") {
     const { totals } = report;
@@ -108,7 +116,7 @@ export async function GET(req: NextRequest) {
           totalRows: [totalRows.length - 1],
         },
       ],
-      `${buildingName} - as of ${asOf}`,
+      `${buildingName} - dues up to ${asOf}`,
     );
     return new Response(new Uint8Array(buffer), {
       headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${filename}.pdf"` },

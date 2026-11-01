@@ -55,11 +55,29 @@ export default function ExportPage() {
         <CardHeader>
           <CardTitle>Total Dues Report</CardTitle>
           <CardDescription>
-            Every flat&apos;s total maintenance dues (since Jan 2026) plus unpaid additional charges, as of today.
+            Every flat&apos;s maintenance dues (since Jan 2026) up to the selected month, plus unpaid previous dues and other charges.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form action="/api/admin/export/dues-report" method="get" className="flex flex-wrap items-end gap-2">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Up to month</label>
+              <select
+                name="month"
+                defaultValue={now.getMonth() + 1}
+                className="h-9 rounded-md border bg-background px-3 text-sm"
+              >
+                {MONTH_NAMES.map((m, i) => (
+                  <option key={m} value={i + 1}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Year</label>
+              <Input name="year" type="number" defaultValue={now.getFullYear()} min={2026} className="w-24" />
+            </div>
             <Button type="submit" name="format" value="excel" variant="outline">
               Export Excel
             </Button>
