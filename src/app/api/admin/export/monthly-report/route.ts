@@ -2,7 +2,7 @@ import { monthParam } from "@/lib/utils";
 import { NextRequest } from "next/server";
 import { requireAdminContext } from "@/lib/building-context";
 import { prisma } from "@/lib/prisma";
-import { getFinancialOverview } from "@/lib/finance";
+import { balanceBefore, getFinancialOverview } from "@/lib/finance";
 import { rateForMonth } from "@/lib/rate-history";
 import { paymentState } from "@/lib/maintenance-dues";
 import { buildExcelReport } from "@/lib/export/excel";
@@ -27,8 +27,10 @@ export async function GET(req: NextRequest) {
   const month = monthParam(searchParams.get("month"));
   const year = Number(searchParams.get("year")) || now.getFullYear();
 
-  const [overview, flats] = await Promise.all([
+  const [overview, opening, flats] = await Promise.all([
     getFinancialOverview(buildingId, { month, year }),
+    // previous month's closing balance; server runs in IST (src/instrumentation.ts)
+    balanceBefore(buildingId, new Date(year, month - 1, 1)),
     prisma.flat.findMany({
       where: { floor: { buildingId } },
       orderBy: [{ floor: { sortOrder: "asc" } }, { flatNumber: "asc" }],
@@ -37,10 +39,10 @@ export async function GET(req: NextRequest) {
   ]);
 
   const summaryRows: (string | number)[][] = [
-    ["Opening Balance (Rs.)", overview.openingBalance.toFixed(2)],
+    ["Opening Balance (Rs.)", opening.toFixed(2)],
     ["Income This Month (Rs.)", overview.monthIncome.toFixed(2)],
     ["Expenses This Month (Rs.)", overview.monthExpenses.toFixed(2)],
-    ["Closing Balance — All-Time (Rs.)", overview.closingBalance.toFixed(2)],
+    ["Closing Balance (Rs.)", (opening + overview.monthIncome - overview.monthExpenses).toFixed(2)],
   ];
 
   const maintenanceRows = flats.map((f) => {

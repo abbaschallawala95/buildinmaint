@@ -111,6 +111,29 @@ export function getYearTransactions(buildingId: string, year: number) {
   return loadTransactions(buildingId, { range: { gte: new Date(year - 1, 11, 1), lt: new Date(year + 1, 0, 1) } });
 }
 
+// Cash in hand just before `before`: the building's opening balance plus every paid transaction
+// dated earlier (same dating as loadTransactions). The previous month's closing balance.
+export async function balanceBefore(buildingId: string, before: Date) {
+  const earlier = { lt: before };
+  const paidEarlier = { OR: [{ paymentDate: earlier }, { paymentDate: null, createdAt: earlier }] };
+  const flatInBuilding = { flat: { floor: { buildingId } } };
+  const sumOf = (agg: { _sum: { amount: unknown } }) => Number(agg._sum.amount ?? 0);
+  const [settings, maintenance, charges, expenses, bills, cleaner] = await Promise.all([
+    getSettings(buildingId),
+    prisma.maintenancePayment.aggregate({ _sum: { amount: true }, where: { status: "PAID", ...flatInBuilding, ...paidEarlier } }),
+    prisma.additionalCharge.aggregate({ _sum: { amount: true }, where: { status: "PAID", ...flatInBuilding, ...paidEarlier } }),
+    prisma.expense.aggregate({ _sum: { amount: true }, where: { buildingId, date: earlier } }),
+    prisma.electricityBill.aggregate({ _sum: { amount: true }, where: { status: "PAID", buildingId, ...paidEarlier } }),
+    prisma.cleanerPaymentEntry.aggregate({
+      _sum: { amount: true },
+      where: { cleanerPayment: { cleaner: { buildingId } }, paymentDate: earlier },
+    }),
+  ]);
+  return (
+    Number(settings.openingBalance) + sumOf(maintenance) + sumOf(charges) - sumOf(expenses) - sumOf(bills) - sumOf(cleaner)
+  );
+}
+
 export async function getFinancialOverview(buildingId: string, period?: { month: number; year: number }) {
   const now = new Date();
   const month = period?.month ?? now.getMonth() + 1;
