@@ -1,12 +1,13 @@
 import { NextRequest } from "next/server";
 import { requireAdminContext } from "@/lib/building-context";
 import { prisma } from "@/lib/prisma";
-import { buildDueSchedule, totalDue } from "@/lib/maintenance-dues";
-import { buildExcelReport } from "@/lib/export/excel";
+import { buildDuesReport } from "@/lib/dues-report";
+import { buildDuesWorkbook } from "@/lib/export/dues-workbook";
 import { buildPdfReport } from "@/lib/export/pdf";
 import { todayValue } from "@/lib/utils";
 
-const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const KIND = { MONTHLY: "Monthly maintenance", PREVIOUS_MAINTENANCE: "Previous dues - maintenance", OTHER: "Other dues" } as const;
+const rs = (n: number) => `Rs. ${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export async function GET(req: NextRequest) {
   let buildingId: string;
@@ -20,82 +21,101 @@ export async function GET(req: NextRequest) {
   const format = searchParams.get("format") === "pdf" ? "pdf" : "excel";
   const now = new Date();
 
-  const flats = await prisma.flat.findMany({
-    where: { floor: { buildingId } },
-    orderBy: [{ floor: { sortOrder: "asc" } }, { flatNumber: "asc" }],
-    include: {
-      floor: true,
-      member: true,
-      payments: true,
-      maintenanceRates: true,
-      additionalCharges: { where: { status: "UNPAID" } },
-    },
-  });
+  const [flats, building] = await Promise.all([
+    prisma.flat.findMany({
+      where: { floor: { buildingId } },
+      orderBy: [{ floor: { sortOrder: "asc" } }, { flatNumber: "asc" }],
+      include: {
+        floor: true,
+        member: true,
+        payments: true,
+        maintenanceRates: true,
+        additionalCharges: { where: { status: "UNPAID" }, orderBy: { createdAt: "asc" } },
+      },
+    }),
+    prisma.building.findUnique({ where: { id: buildingId }, select: { name: true } }),
+  ]);
 
-  let grandTotal = 0;
-  const rows = flats.map((f) => {
-    const schedule = buildDueSchedule(
-      f.maintenanceRates.map((r) => ({
-        amount: Number(r.amount),
-        effectiveMonth: r.effectiveMonth,
-        effectiveYear: r.effectiveYear,
-      })),
-      f.payments.map((p) => ({
-        month: p.month,
-        year: p.year,
-        status: p.status,
-        amount: Number(p.amount),
-        paymentDate: p.paymentDate,
-        paymentMethod: p.paymentMethod,
-      })),
-      now.getMonth() + 1,
-      now.getFullYear(),
-    );
-    const unpaidMonths = schedule.filter((s) => s.status === "UNPAID");
-    const maintenanceDue = totalDue(schedule);
-    const chargesDue = f.additionalCharges.reduce((sum, c) => sum + Number(c.amount), 0);
-    const total = maintenanceDue + chargesDue;
-    grandTotal += total;
-    return [
-      `${f.floor.name} / ${f.flatNumber}`,
-      f.member?.name ?? "Unassigned",
-      unpaidMonths.length,
-      unpaidMonths.map((s) => `${MONTH_ABBR[s.month - 1]} ${s.year}`).join(", ") || "-",
-      maintenanceDue.toFixed(2),
-      chargesDue.toFixed(2),
-      total.toFixed(2),
-    ];
-  });
-  rows.push(["", "", "", "", "", "Grand Total (Rs.)", grandTotal.toFixed(2)]);
-
-  const title = `Total Dues Report - as of ${now.toLocaleDateString("en-IN")}`;
+  const report = buildDuesReport(
+    flats.map((f) => ({
+      label: `${f.floor.name} / ${f.flatNumber}`,
+      member: f.member?.name ?? "Unassigned",
+      rates: f.maintenanceRates.map((r) => ({ amount: Number(r.amount), effectiveMonth: r.effectiveMonth, effectiveYear: r.effectiveYear })),
+      payments: f.payments.map((p) => ({ ...p, amount: Number(p.amount) })),
+      charges: f.additionalCharges.map((c) => ({ description: c.description, amount: Number(c.amount), previousDueType: c.previousDueType })),
+    })),
+    now.getMonth() + 1,
+    now.getFullYear(),
+  );
+  const asOf = now.toLocaleDateString("en-IN");
+  const buildingName = building?.name ?? "Building";
   const filename = `dues-report-${todayValue()}`;
-  const section = {
-    heading: "Dues by Flat",
-    headers: [
-      "Flat",
-      "Member",
-      "Months Unpaid",
-      "Unpaid Periods",
-      "Maintenance Due (Rs.)",
-      "Other Charges Due (Rs.)",
-      "Total Due (Rs.)",
-    ],
-    rows,
-    colWeights: [1.2, 1.2, 0.8, 2.4, 1.2, 1.3, 1.1],
-  };
 
   if (format === "pdf") {
-    const buffer = await buildPdfReport(title, [section]);
+    const { totals } = report;
+    const otherTotal = totals.other.reduce((s, o) => s + o.amount, 0);
+    const summaryRows = report.flats.map((f) => [
+      f.label,
+      f.member,
+      rs(f.monthly),
+      rs(f.previousMaintenance),
+      rs(f.other),
+      f.total > 0 ? rs(f.total) : "Clear",
+    ]);
+    summaryRows.push(["All flats", "", rs(report.flats.reduce((s, f) => s + f.monthly, 0)), rs(totals.previousMaintenance), rs(otherTotal), rs(totals.grand)]);
+
+    const detailRows: string[][] = [];
+    const detailTotals: number[] = [];
+    for (const f of report.flats.filter((x) => x.total > 0)) {
+      f.items.forEach((item, i) => detailRows.push([i === 0 ? `${f.label}, ${f.member}` : "", KIND[item.kind], item.label, item.note, rs(item.due)]));
+      detailTotals.push(detailRows.length);
+      detailRows.push(["", "", "", `Total for ${f.label}`, rs(f.total)]);
+    }
+
+    const totalRows = [
+      ["Monthly maintenance", "Unpaid months", rs(totals.unpaidMonths)],
+      ["Monthly maintenance", "Part-paid months (remaining)", rs(totals.partialMonths)],
+      ["Previous dues - maintenance", "All previous maintenance dues", rs(totals.previousMaintenance)],
+      ...totals.other.map((o) => ["Other dues", o.name, rs(o.amount)]),
+      ["Grand total", `${totals.flatsWithDues} of ${report.flats.length} flat(s) with dues`, rs(totals.grand)],
+    ];
+
+    const buffer = await buildPdfReport(
+      "Total Dues Report",
+      [
+        {
+          heading: "Summary by flat",
+          headers: ["Flat", "Member", "Monthly maintenance", "Previous maint. dues", "Other dues", "Total due"],
+          rows: summaryRows,
+          colWeights: [1.1, 1.2, 1.1, 1.1, 1, 1],
+          rightAlign: [2, 3, 4, 5],
+          totalRows: [summaryRows.length - 1],
+        },
+        {
+          heading: "Dues in detail",
+          headers: ["Flat", "Type", "Item", "Status", "Due"],
+          rows: detailRows.length ? detailRows : [["Every flat is clear - nothing is due.", "", "", "", ""]],
+          colWeights: [1.1, 1.2, 1.6, 1.4, 0.9],
+          rightAlign: [4],
+          totalRows: detailTotals,
+        },
+        {
+          heading: "Totals",
+          headers: ["Type", "Item", "Amount"],
+          rows: totalRows,
+          colWeights: [1.3, 2, 1],
+          rightAlign: [2],
+          totalRows: [totalRows.length - 1],
+        },
+      ],
+      `${buildingName} - as of ${asOf}`,
+    );
     return new Response(new Uint8Array(buffer), {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${filename}.pdf"`,
-      },
+      headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${filename}.pdf"` },
     });
   }
 
-  const buffer = await buildExcelReport([{ sheetName: "Dues", headers: section.headers, rows: section.rows }]);
+  const buffer = await buildDuesWorkbook(report, buildingName, asOf);
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

@@ -7,7 +7,19 @@ export type ReportSection = {
   rows: (string | number)[][];
   // Relative column widths (e.g. [1, 1, 2] gives the 3rd column twice the width). Defaults to even split.
   colWeights?: number[];
+  // Columns to right-align (amounts). Defaults to all left.
+  rightAlign?: number[];
+  // Row indexes drawn as totals (bold, shaded).
+  totalRows?: number[];
 };
+
+const BRAND = rgb(0.31, 0.27, 0.9);
+const BRAND_SOFT = rgb(0.93, 0.95, 1);
+const STRIPE = rgb(0.97, 0.98, 0.99);
+const RULE = rgb(0.89, 0.91, 0.94);
+const WHITE = rgb(1, 1, 1);
+const INK = rgb(0.12, 0.16, 0.22);
+const PAD = 3;
 
 const PAGE_SIZE: [number, number] = [595.28, 841.89]; // A4
 const MARGIN = 40;
@@ -40,7 +52,7 @@ export function wrap(text: string, font: PDFFont, width: number): string[] {
   return lines;
 }
 
-export async function buildPdfReport(title: string, sections: ReportSection[]): Promise<Buffer> {
+export async function buildPdfReport(title: string, sections: ReportSection[], subtitle?: string): Promise<Buffer> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const boldFont = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -61,13 +73,18 @@ export async function buildPdfReport(title: string, sections: ReportSection[]): 
     }
   };
 
-  page.drawText(safe(title), { x: MARGIN, y, size: 16, font: boldFont, color: rgb(0, 0, 0) });
-  y -= 26;
+  // Title bar
+  page.drawRectangle({ x: 0, y: y - 16, width: PAGE_SIZE[0], height: 56, color: BRAND });
+  page.drawText(safe(title), { x: MARGIN, y: y + 6, size: 16, font: boldFont, color: WHITE });
+  if (subtitle) page.drawText(safe(subtitle), { x: MARGIN, y: y - 8, size: 8, font, color: rgb(0.85, 0.87, 1) });
+  y -= 40;
 
   for (const section of sections) {
     newPageIfNeeded(36);
-    page.drawText(safe(section.heading), { x: MARGIN, y, size: 12, font: boldFont });
+    page.drawText(safe(section.heading), { x: MARGIN, y, size: 12, font: boldFont, color: INK });
     y -= 18;
+    const right = new Set(section.rightAlign ?? []);
+    const totals = new Set(section.totalRows ?? []);
 
     const usableWidth = PAGE_SIZE[0] - MARGIN * 2;
     const weights = section.colWeights ?? section.headers.map(() => 1);
@@ -81,22 +98,28 @@ export async function buildPdfReport(title: string, sections: ReportSection[]): 
       cursor += (usableWidth * w) / totalWeight;
     }
 
-    // Each cell wraps inside its column; the row is as tall as its tallest cell.
-    const drawRow = (cells: (string | number)[], f: PDFFont) => {
+    // Each cell wraps inside its column; the row is as tall as its tallest cell. A background
+    // band (header / stripe / total) is drawn behind the text, and a hairline under each row.
+    const drawRow = (cells: (string | number)[], f: PDFFont, band?: ReturnType<typeof rgb>, color = INK) => {
       const lines = cells.map((c, i) => wrap(safe(String(c)), f, colW[i]));
-      const height = Math.max(...lines.map((l) => l.length)) * LINE_HEIGHT;
+      const height = Math.max(...lines.map((l) => l.length)) * LINE_HEIGHT + PAD * 2;
       newPageIfNeeded(height);
+      const top = y + FONT_SIZE; // text baseline sits FONT_SIZE below the row top
+      if (band) page.drawRectangle({ x: MARGIN - PAD, y: top - height, width: usableWidth + PAD, height, color: band });
       lines.forEach((cellLines, i) =>
-        cellLines.forEach((line, n) =>
-          page.drawText(line, { x: colX[i], y: y - n * LINE_HEIGHT, size: FONT_SIZE, font: f }),
-        ),
+        cellLines.forEach((line, n) => {
+          const x = right.has(i) ? colX[i] + colW[i] - f.widthOfTextAtSize(line, FONT_SIZE) : colX[i];
+          page.drawText(line, { x, y: y - PAD - n * LINE_HEIGHT, size: FONT_SIZE, font: f, color });
+        }),
       );
+      page.drawLine({ start: { x: MARGIN - PAD, y: top - height }, end: { x: MARGIN + usableWidth, y: top - height }, thickness: 0.5, color: RULE });
       y -= height;
     };
 
-    drawRow(section.headers, boldFont);
-    y -= 3;
-    for (const row of section.rows) drawRow(row, font);
+    drawRow(section.headers, boldFont, BRAND, WHITE);
+    section.rows.forEach((row, i) =>
+      totals.has(i) ? drawRow(row, boldFont, BRAND_SOFT) : drawRow(row, font, i % 2 === 1 ? STRIPE : undefined),
+    );
     y -= 16;
   }
 
