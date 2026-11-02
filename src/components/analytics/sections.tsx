@@ -1,19 +1,16 @@
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MONTH_NAMES, firstShownMonth, type HeadCell, type HeadRow, type Period, type SectionKey } from "@/lib/analytics";
+import { MONTH_NAMES, SHORT_MONTHS as SHORT, firstShownMonth, periodLabel as label, previousLabel, type HeadCell, type HeadRow, type SectionKey } from "@/lib/analytics";
 import type { AnalyticsData } from "@/lib/analytics-data";
 
 // Analytics sections shared by /admin/analytics (everything) and shared member reports
 // (only the sections the admin picked). Colours come from theme tokens, except the
 // income/expense pair, which is a colour-blind-safe pair checked with the dataviz validator.
 
-const SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const INCOME_BAR = "bg-teal-600";
 const EXPENSE_BAR = "bg-rose-600 dark:bg-rose-500";
 const rupees = (n: number) => `${n < 0 ? "−" : ""}₹${Math.abs(n).toLocaleString("en-IN")}`;
-const label = (p: Period) => `${MONTH_NAMES[p.month - 1]} ${p.year}`;
-const previousLabel = (p: Period) => (p.month === 1 ? `December ${p.year - 1}` : MONTH_NAMES[p.month - 2]);
 
 type HrefFor = ((month: number) => string) | null;
 

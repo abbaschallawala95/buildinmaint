@@ -11,6 +11,10 @@ export const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+export const SHORT_MONTHS = MONTH_NAMES.map((m) => m.slice(0, 3));
+export const periodLabel = (p: Period) => `${MONTH_NAMES[p.month - 1]} ${p.year}`;
+export const previousLabel = (p: Period) => (p.month === 1 ? `December ${p.year - 1}` : MONTH_NAMES[p.month - 2]);
+
 export const SECTIONS = [
   { key: "summary", label: "Year summary" },
   { key: "chart", label: "Money in vs out" },

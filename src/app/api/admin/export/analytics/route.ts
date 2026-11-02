@@ -3,12 +3,13 @@ import { requireAdminContext } from "@/lib/building-context";
 import { MONTH_NAMES, SECTIONS, firstShownMonth, parsePeriod, parseSections } from "@/lib/analytics";
 import { FIRST_YEAR, getAnalytics } from "@/lib/analytics-data";
 import { buildExcelReport } from "@/lib/export/excel";
-import { buildPdfReport } from "@/lib/export/pdf";
+import { buildAnalyticsPdf } from "@/lib/export/analytics-pdf";
+import { prisma } from "@/lib/prisma";
 
 const rs = (n: number) => n.toFixed(2);
 const short = (m: number) => MONTH_NAMES[m - 1].slice(0, 3);
 
-// Same query string as /admin/analytics; exports the ticked sections as tables.
+// Same query string as /admin/analytics; exports the ticked sections (PDF drawn like the page, Excel as tables).
 export async function GET(req: NextRequest) {
   let buildingId: string;
   try {
@@ -23,7 +24,18 @@ export async function GET(req: NextRequest) {
   const period = parsePeriod(searchParams.get("period"), FIRST_YEAR) ?? { year: now.getFullYear(), month: now.getMonth() + 1 };
   const compare = parsePeriod(searchParams.get("cmp"), FIRST_YEAR);
   const on = parseSections(searchParams.getAll("s"));
-  const { year: a, comparison, collection } = await getAnalytics(buildingId, period, compare);
+  const data = await getAnalytics(buildingId, period, compare);
+  const filename = `analytics-${period.year}-${String(period.month).padStart(2, "0")}`;
+
+  if (format === "pdf") {
+    const building = await prisma.building.findUnique({ where: { id: buildingId }, select: { name: true } });
+    const buffer = await buildAnalyticsPdf(data, on, building?.name ?? "Building");
+    return new Response(new Uint8Array(buffer), {
+      headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${filename}.pdf"` },
+    });
+  }
+
+  const { year: a, comparison, collection } = data;
   const label = (p: { year: number; month: number }) => `${MONTH_NAMES[p.month - 1]} ${p.year}`;
   // Same months the page shows: empty ones before the first transaction are left out.
   const from = firstShownMonth(a, period.month) - 1;
@@ -93,14 +105,6 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const name = `Analytics - ${label(period)}${compare ? ` vs ${label(compare)}` : ""}`;
-  const filename = `analytics-${period.year}-${String(period.month).padStart(2, "0")}`;
-  if (format === "pdf") {
-    const buffer = await buildPdfReport(name, sections);
-    return new Response(new Uint8Array(buffer), {
-      headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${filename}.pdf"` },
-    });
-  }
   const buffer = await buildExcelReport(sections.map((s) => ({ sheetName: s.heading.replace(/[\\/?*[\]:]/g, "-"), headers: s.headers, rows: s.rows })));
   return new Response(new Uint8Array(buffer), {
     headers: {

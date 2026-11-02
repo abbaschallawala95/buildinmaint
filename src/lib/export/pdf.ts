@@ -52,16 +52,19 @@ export function wrap(text: string, font: PDFFont, width: number): string[] {
   return lines;
 }
 
+// Standard fonts only cover WinAnsi; anything else (Hindi, emoji, ₹) makes drawText throw.
+// ponytail: non-Latin text becomes "?"; embed a Unicode TTF via @pdf-lib/fontkit if it must render.
+export function safeText(font: PDFFont) {
+  const supported = new Set(font.getCharacterSet());
+  return (text: string) => Array.from(text.replace(/₹/g, "Rs."), (c) => (supported.has(c.codePointAt(0)!) ? c : "?")).join("");
+}
+
 export async function buildPdfReport(title: string, sections: ReportSection[], subtitle?: string): Promise<Buffer> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const boldFont = await doc.embedFont(StandardFonts.HelveticaBold);
 
-  // Standard fonts only cover WinAnsi; anything else (Hindi, emoji, ₹) makes drawText throw.
-  // ponytail: non-Latin text becomes "?"; embed a Unicode TTF via @pdf-lib/fontkit if it must render.
-  const supported = new Set(font.getCharacterSet());
-  const safe = (text: string) =>
-    Array.from(text.replace(/₹/g, "Rs."), (c) => (supported.has(c.codePointAt(0)!) ? c : "?")).join("");
+  const safe = safeText(font);
 
   let page = doc.addPage(PAGE_SIZE);
   let y = PAGE_SIZE[1] - MARGIN;
