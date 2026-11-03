@@ -13,7 +13,15 @@ export function whatsappNumber(phone: string | null | undefined): string {
   return digits.length === 10 ? `91${digits}` : digits.length > 10 ? digits : "";
 }
 
-// wa.me link that opens the member's chat. No usable number opens WhatsApp's own page instead.
-export function whatsappLink(phone: string | null | undefined): string {
-  return `https://wa.me/${whatsappNumber(phone)}`;
+// wa.me link that opens the member's chat, with the text ready to send. It can't carry a file. No
+// usable number opens WhatsApp's own page instead.
+export function whatsappLink(phone: string | null | undefined, text?: string): string {
+  const query = text ? `?text=${encodeURIComponent(text)}` : "";
+  return `https://wa.me/${whatsappNumber(phone)}${query}`;
+}
+
+// WhatsApp's own link, for computers: wa.me stops at a "Continue to chat" web page there, while
+// this goes straight to the chat in the desktop app. It does nothing if the app isn't installed.
+export function whatsappAppLink(phone: string | null | undefined, text: string): string {
+  return `whatsapp://send?phone=${whatsappNumber(phone)}&text=${encodeURIComponent(text)}`;
 }

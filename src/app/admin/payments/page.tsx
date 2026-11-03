@@ -111,6 +111,7 @@ export default async function PaymentsPage({
                   phone: flat.member?.phone ?? null,
                   memberName: flat.member?.name ?? null,
                   flatLabel: `${flat.floor.name} / ${flat.flatNumber}`,
+                  period: `${MONTH_NAMES[month - 1]} ${year}`,
                 };
                 return (
                   <TableRow key={flat.id}>

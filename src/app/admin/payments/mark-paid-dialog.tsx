@@ -21,6 +21,7 @@ import {
 import { markPaymentPaid } from "./actions";
 import { todayValue } from "@/lib/utils";
 import { succeeded } from "@/lib/toast-result";
+import { whatsappNumber } from "@/lib/receipt";
 import { ReceiptButtons, type ReceiptContact } from "./receipt-buttons";
 
 export function MarkPaidDialog({
@@ -69,6 +70,11 @@ export function MarkPaidDialog({
             <div className="flex flex-wrap gap-2">
               <ReceiptButtons paymentId={savedId} contact={contact} />
             </div>
+            {!whatsappNumber(contact.phone) && (
+              <p className="text-sm text-muted-foreground">
+                No valid phone number is saved for this member. Add it under Members to send the receipt on WhatsApp.
+              </p>
+            )}
           </>
         ) : (
         <>

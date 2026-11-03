@@ -4,7 +4,16 @@ import { getReceipt } from "@/lib/receipt-data";
 import { themeOf } from "@/lib/themes";
 import { PrintButton } from "./print-button";
 
-export const metadata: Metadata = { title: "Maintenance Receipt", robots: { index: false } };
+// The og:image is what WhatsApp shows as the preview when this link is sent in a chat.
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const title = "Maintenance Receipt";
+  return {
+    title,
+    robots: { index: false },
+    openGraph: { title, images: [{ url: `/api/receipt-image?id=${encodeURIComponent(id)}`, width: 800, type: "image/png" }] },
+  };
+}
 
 // Needs no login: the payment's random UUID is the key to the URL, and marking the payment
 // unpaid deletes the row, so the page stops working.
