@@ -57,6 +57,7 @@ export async function resetAllData(_prev: { error?: string }, formData: FormData
     prisma.electricityBill.deleteMany({ where: { buildingId } }),
     prisma.floor.deleteMany({ where: { buildingId } }),
     prisma.profile.deleteMany({ where: { role: "MEMBER", buildingId } }),
+    prisma.settings.updateMany({ where: { buildingId }, data: { lastReceiptNumber: 0 } }),
   ]);
 
   const admin = createAdminClient();

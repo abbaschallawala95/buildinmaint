@@ -133,6 +133,8 @@ model MaintenancePayment {
   recordedById  String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+  // Running number per building (see Settings.lastReceiptNumber). Null = older than receipts, none issued.
+  receiptNumber Int?
 
   flat       Flat     @relation(fields: [flatId], references: [id], onDelete: Cascade)
   recordedBy Profile? @relation("PaymentRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
@@ -293,6 +295,7 @@ model Settings {
   allowMembersViewFinancials Boolean @default(false)
   allowMembersViewAllMonths  Boolean @default(false)
   theme                      String  @default("indigo") // key from src/lib/themes.ts
+  lastReceiptNumber          Int     @default(0)
 
   building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
 

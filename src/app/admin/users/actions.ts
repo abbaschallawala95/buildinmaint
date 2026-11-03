@@ -111,7 +111,7 @@ export async function updateMember(_prev: { error?: string }, formData: FormData
     await prisma.$transaction(async (tx) => {
       await tx.profile.update({
         where: { id: parsed.data.id },
-        data: { name: parsed.data.name, email: parsed.data.email, phone: parsed.data.phone },
+        data: { name: parsed.data.name, email: parsed.data.email, phone: parsed.data.phone ?? null },
       });
 
       if (parsed.data.flatId !== profile.flat?.id) {

@@ -21,6 +21,7 @@ import {
 import { markPaymentPaid } from "./actions";
 import { todayValue } from "@/lib/utils";
 import { succeeded } from "@/lib/toast-result";
+import { ReceiptButtons, type ReceiptContact } from "./receipt-buttons";
 
 export function MarkPaidDialog({
   flatId,
@@ -28,6 +29,8 @@ export function MarkPaidDialog({
   year,
   defaultAmount,
   alreadyPaid = 0,
+  hideTrigger = false,
+  contact,
 }: {
   flatId: string;
   month: number;
@@ -35,16 +38,40 @@ export function MarkPaidDialog({
   defaultAmount: string;
   /** set when the month is Partial: the amount entered is added on top of this */
   alreadyPaid?: number;
+  /** fully paid month: the button is gone but the dialog stays mounted to show the saved step */
+  hideTrigger?: boolean;
+  contact: ReceiptContact;
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savedId, setSavedId] = useState<string | null>(null);
   const adding = alreadyPaid > 0;
   const [method, setMethod] = useState("CASH");
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm">{adding ? "Add Payment" : "Mark Paid"}</Button>} />
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setSavedId(null);
+      }}
+    >
+      {!hideTrigger && <DialogTrigger render={<Button size="sm">{adding ? "Add Payment" : "Mark Paid"}</Button>} />}
       <DialogContent>
+        {savedId ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Payment Saved</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Share the receipt with {contact.memberName ?? "the member"} for {contact.flatLabel}.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <ReceiptButtons paymentId={savedId} contact={contact} />
+            </div>
+          </>
+        ) : (
+        <>
         <DialogHeader>
           <DialogTitle>{adding ? "Add Remaining Payment" : "Record Payment"}</DialogTitle>
         </DialogHeader>
@@ -53,9 +80,9 @@ export function MarkPaidDialog({
             e.preventDefault();
             const formData = new FormData(e.currentTarget);
             setSaving(true);
-            const ok = await succeeded(markPaymentPaid(formData));
+            const result = await markPaymentPaid(formData);
             setSaving(false);
-            if (ok) setOpen(false);
+            if (await succeeded(Promise.resolve(result))) setSavedId(result.paymentId ?? null);
           }}
           className="space-y-4"
         >
@@ -118,6 +145,8 @@ export function MarkPaidDialog({
             {saving ? "Saving…" : "Save Payment"}
           </Button>
         </form>
+        </>
+        )}
       </DialogContent>
     </Dialog>
   );

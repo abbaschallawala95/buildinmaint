@@ -5,8 +5,7 @@ import { z } from "zod";
 import { requireAdminContext } from "@/lib/building-context";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
-import { withErrors } from "@/lib/action-result";
-
+import { withErrors, type ActionResult } from "@/lib/action-result";
 async function requireFlatInBuilding(flatId: string, buildingId: string) {
   const flat = await prisma.flat.findFirst({ where: { id: flatId, floor: { buildingId } } });
   if (!flat) throw new Error("Flat not found");
@@ -23,7 +22,16 @@ const markPaidSchema = z.object({
   notes: z.string().optional(),
 });
 
-export const markPaymentPaid = withErrors(async (formData: FormData) => {
+// Also returns the saved payment so the dialog can offer its receipt straight away.
+export async function markPaymentPaid(formData: FormData): Promise<ActionResult & { paymentId?: string }> {
+  let paymentId: string | undefined;
+  const result = await withErrors(async () => {
+    paymentId = await savePayment(formData);
+  })();
+  return { ...result, paymentId };
+}
+
+async function savePayment(formData: FormData) {
   const { profile: admin, buildingId } = await requireAdminContext();
 
   const parsed = markPaidSchema.parse({
@@ -39,27 +47,44 @@ export const markPaymentPaid = withErrors(async (formData: FormData) => {
   // "Add Payment" on a Partial month adds the installment to what was already paid.
   const adding = formData.get("addToExisting") === "1";
 
-  const payment = await prisma.maintenancePayment.upsert({
-    where: { flatId_month_year: { flatId: parsed.flatId, month: parsed.month, year: parsed.year } },
-    create: {
-      flatId: parsed.flatId,
-      month: parsed.month,
-      year: parsed.year,
-      amount: parsed.amount,
-      status: "PAID",
-      paymentDate: new Date(parsed.paymentDate),
-      paymentMethod: parsed.paymentMethod,
-      notes: parsed.notes,
-      recordedById: admin.id,
-    },
-    update: {
-      amount: adding ? { increment: parsed.amount } : parsed.amount,
-      status: "PAID",
-      paymentDate: new Date(parsed.paymentDate),
-      paymentMethod: parsed.paymentMethod,
-      notes: parsed.notes,
-      recordedById: admin.id,
-    },
+  const payment = await prisma.$transaction(async (tx) => {
+    const where = { flatId_month_year: { flatId: parsed.flatId, month: parsed.month, year: parsed.year } };
+    const existing = await tx.maintenancePayment.findUnique({ where, select: { receiptNumber: true } });
+    // A second installment keeps the month's number; the atomic increment means two admins saving
+    // at once can't get the same one.
+    const receiptNumber =
+      existing?.receiptNumber ??
+      (
+        await tx.settings.upsert({
+          where: { buildingId },
+          create: { buildingId, lastReceiptNumber: 1 },
+          update: { lastReceiptNumber: { increment: 1 } },
+        })
+      ).lastReceiptNumber;
+    return tx.maintenancePayment.upsert({
+      where,
+      create: {
+        flatId: parsed.flatId,
+        month: parsed.month,
+        year: parsed.year,
+        amount: parsed.amount,
+        status: "PAID",
+        paymentDate: new Date(parsed.paymentDate),
+        paymentMethod: parsed.paymentMethod,
+        notes: parsed.notes,
+        recordedById: admin.id,
+        receiptNumber,
+      },
+      update: {
+        amount: adding ? { increment: parsed.amount } : parsed.amount,
+        status: "PAID",
+        paymentDate: new Date(parsed.paymentDate),
+        paymentMethod: parsed.paymentMethod,
+        notes: parsed.notes,
+        recordedById: admin.id,
+        receiptNumber,
+      },
+    });
   });
   await logAudit(admin.id, adding ? "ADD_PAYMENT" : "MARK_PAID", "MaintenancePayment", payment.id, {
     month: parsed.month,
@@ -74,7 +99,8 @@ export const markPaymentPaid = withErrors(async (formData: FormData) => {
   revalidatePath("/admin/maintenance");
   revalidatePath("/admin");
   revalidatePath("/member");
-});
+  return payment.id;
+}
 
 const chargeSchema = z.object({
   flatId: z.string().uuid(),

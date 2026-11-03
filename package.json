@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx scripts/check-themes.ts && tsx scripts/check-dues.ts && tsx scripts/check-rates.ts && tsx scripts/check-analytics.ts && tsx scripts/check-cleaner-advance.ts && tsx scripts/check-dues-report.ts && tsx --conditions=react-server scripts/check-pdf.ts && tsx --conditions=react-server scripts/check-analytics-pdf.ts"
+    "test": "tsx scripts/check-themes.ts && tsx scripts/check-dues.ts && tsx scripts/check-rates.ts && tsx scripts/check-analytics.ts && tsx scripts/check-cleaner-advance.ts && tsx scripts/check-dues-report.ts && tsx scripts/check-receipt.ts && tsx --conditions=react-server scripts/check-pdf.ts && tsx --conditions=react-server scripts/check-analytics-pdf.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

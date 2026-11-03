@@ -8,11 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MarkPaidDialog } from "./mark-paid-dialog";
+import { ReceiptButtons } from "./receipt-buttons";
 import { markPaymentUnpaid } from "./actions";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { rateForMonth } from "@/lib/rate-history";
 import { paymentState } from "@/lib/maintenance-dues";
-
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -107,6 +107,11 @@ export default async function PaymentsPage({
                   year,
                 );
                 const { paid, remaining, status } = paymentState(rate, payment);
+                const contact = {
+                  phone: flat.member?.phone ?? null,
+                  memberName: flat.member?.name ?? null,
+                  flatLabel: `${flat.floor.name} / ${flat.flatNumber}`,
+                };
                 return (
                   <TableRow key={flat.id}>
                     <TableCell>
@@ -133,16 +138,18 @@ export default async function PaymentsPage({
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                      {status === "PARTIAL" && (
-                        <MarkPaidDialog
-                          flatId={flat.id}
-                          month={month}
-                          year={year}
-                          defaultAmount={remaining.toFixed(2)}
-                          alreadyPaid={paid}
-                        />
-                      )}
-                      {status !== "UNPAID" ? (
+                      {/* Always mounted: saving a payment re-renders this row, and the dialog's saved step must survive it. */}
+                      <MarkPaidDialog
+                        flatId={flat.id}
+                        month={month}
+                        year={year}
+                        defaultAmount={remaining.toFixed(2)}
+                        alreadyPaid={status === "PARTIAL" ? paid : 0}
+                        hideTrigger={status === "PAID"}
+                        contact={contact}
+                      />
+                      {status !== "UNPAID" && payment.receiptNumber !== null && <ReceiptButtons paymentId={payment.id} contact={contact} />}
+                      {status !== "UNPAID" && (
                         <form action={markPaymentUnpaid} className="inline">
                           <input type="hidden" name="flatId" value={flat.id} />
                           <input type="hidden" name="month" value={month} />
@@ -155,13 +162,6 @@ export default async function PaymentsPage({
                             Mark Unpaid
                           </ConfirmSubmitButton>
                         </form>
-                      ) : (
-                        <MarkPaidDialog
-                          flatId={flat.id}
-                          month={month}
-                          year={year}
-                          defaultAmount={rate.toFixed(2)}
-                        />
                       )}
                       </div>
                     </TableCell>
