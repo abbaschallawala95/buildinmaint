@@ -34,6 +34,26 @@ final class Links {
         }
     }
 
+    /** A start page: Back here leaves the app instead of bouncing through the login redirect. */
+    static boolean isHome(String url) {
+        String path = path(url);
+        return path != null && path.matches("/?(admin|member|login)?/?");
+    }
+
+    /** Pages Back should step over: the built-in offline page and the login page (it redirects signed-in users). */
+    static boolean skipOnBack(String url) {
+        return url.startsWith("data:") || url.startsWith("about:") || "/login".equals(path(url));
+    }
+
+    private static String path(String url) {
+        if (url == null) return null;
+        try {
+            return URI.create(url).getPath();
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     /** Display name for a downloaded file: the server's name if it sent one, else from the URL, always with an extension. */
     static String fileName(String url, String contentDisposition, String mime) {
         String name = null;
@@ -50,14 +70,8 @@ final class Links {
                 name = plain.group(1).trim();
             }
         }
-        if (name == null && !url.startsWith("blob:")) {
-            try {
-                String path = URI.create(url).getPath();
-                if (path != null) name = path.substring(path.lastIndexOf('/') + 1);
-            } catch (IllegalArgumentException ignored) {
-                // fall through to the generic name
-            }
-        }
+        String path = url.startsWith("blob:") ? null : path(url);
+        if (name == null && path != null) name = path.substring(path.lastIndexOf('/') + 1);
         if (name == null || name.isEmpty()) name = "download";
         name = name.replaceAll("[\\\\/:*?\"<>|]", "_");
         if (!name.contains(".")) name += extension(mime);

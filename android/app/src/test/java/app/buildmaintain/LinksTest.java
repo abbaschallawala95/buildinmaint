@@ -32,6 +32,25 @@ public class LinksTest {
         assertFalse(Links.isExternal("not a url", LIVE));
     }
 
+    @Test public void homePagesLeaveTheApp() {
+        assertTrue(Links.isHome("https://buildinmaint.vercel.app"));
+        assertTrue(Links.isHome("https://buildinmaint.vercel.app/"));
+        assertTrue(Links.isHome("http://localhost:3000/admin"));
+        assertTrue(Links.isHome("http://localhost:3000/admin/?month=11"));
+        assertTrue(Links.isHome("http://localhost:3000/member"));
+        assertTrue(Links.isHome("http://localhost:3000/login"));
+        assertFalse(Links.isHome("http://localhost:3000/admin/payments"));
+        assertFalse(Links.isHome("http://localhost:3000/member/monthly-data"));
+    }
+
+    @Test public void backSkipsLoginAndOfflinePages() {
+        assertTrue(Links.skipOnBack("data:text/html;charset=utf-8;base64,"));
+        assertTrue(Links.skipOnBack("about:blank"));
+        assertTrue(Links.skipOnBack("http://localhost:3000/login"));
+        assertFalse(Links.skipOnBack("http://localhost:3000/admin/payments"));
+        assertFalse(Links.skipOnBack("http://localhost:3000/admin"));
+    }
+
     @Test public void nameFromContentDisposition() {
         assertEquals("Monthly Report Oct 2026.pdf",
             Links.fileName("https://h/api/x", "attachment; filename=\"Monthly Report Oct 2026.pdf\"", "application/pdf"));
