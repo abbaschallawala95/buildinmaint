@@ -1,0 +1,54 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Release signing key lives outside the repo: %USERPROFILE%\BuildMaintain-keys\keystore.properties
+def keyFile = new File(System.getProperty('user.home'), 'BuildMaintain-keys/keystore.properties')
+def keyProps = new Properties()
+if (keyFile.exists()) keyFile.withInputStream { keyProps.load(it) }
+
+android {
+    namespace 'app.buildmaintain'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'app.buildmaintain'
+        minSdk 29
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    buildFeatures { buildConfig true }
+
+    signingConfigs {
+        release {
+            if (keyFile.exists()) {
+                storeFile new File(keyFile.parentFile, keyProps.storeFile)
+                storePassword keyProps.storePassword
+                keyAlias keyProps.keyAlias
+                keyPassword keyProps.keyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            // Local dev server through `adb reverse tcp:3000 tcp:3000`
+            buildConfigField 'String', 'START_URL', '"http://localhost:3000"'
+        }
+        release {
+            buildConfigField 'String', 'START_URL', '"https://buildinmaint.vercel.app"'
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}
