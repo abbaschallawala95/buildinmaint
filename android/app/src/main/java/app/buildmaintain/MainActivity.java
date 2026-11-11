@@ -20,6 +20,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
 import org.json.JSONObject;
@@ -173,23 +174,61 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void save(String base64, String name, String mime) {
-            boolean image = mime.startsWith("image/");
-            ContentValues values = new ContentValues();
-            values.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
-            values.put(MediaStore.MediaColumns.MIME_TYPE, mime);
-            values.put(MediaStore.MediaColumns.RELATIVE_PATH,
-                image ? Environment.DIRECTORY_PICTURES + "/Build Maintain" : Environment.DIRECTORY_DOWNLOADS);
-            Uri collection = image ? MediaStore.Images.Media.EXTERNAL_CONTENT_URI : MediaStore.Downloads.EXTERNAL_CONTENT_URI;
             try {
-                Uri file = getContentResolver().insert(collection, values);
-                if (file == null) throw new IllegalStateException("insert failed");
-                try (OutputStream out = getContentResolver().openOutputStream(file)) {
-                    out.write(Base64.decode(base64, Base64.DEFAULT));
-                }
-                toast("Saved " + name + " to " + (image ? "Pictures/Build Maintain" : "Downloads"));
+                saveFile(Base64.decode(base64, Base64.DEFAULT), name, mime);
+                toast("Saved " + name + " to " + (mime.startsWith("image/") ? "Pictures/Build Maintain" : "Downloads"));
             } catch (Exception e) {
                 toast("Could not save " + name + ".");
             }
         }
+
+        /** Opens the member's WhatsApp chat with the receipt image attached. False: the page uses its old flow. */
+        @JavascriptInterface
+        public boolean shareToWhatsApp(String base64, String number) {
+            String jid = Links.whatsappJid(number);
+            if (jid == null) return false;
+            Uri image;
+            try {
+                image = saveFile(Base64.decode(base64, Base64.DEFAULT), "maintenance-receipt.png", "image/png");
+            } catch (Exception e) {
+                return false;
+            }
+            Intent send = new Intent(Intent.ACTION_SEND)
+                .setType("image/png")
+                .putExtra(Intent.EXTRA_STREAM, image)
+                .putExtra("jid", jid) // unofficial: opens this chat instead of WhatsApp's contact picker
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            runOnUiThread(() -> openWhatsApp(send));
+            return true;
+        }
+    }
+
+    private void openWhatsApp(Intent send) {
+        for (String app : new String[] {"com.whatsapp", "com.whatsapp.w4b"}) {
+            try {
+                startActivity(new Intent(send).setPackage(app));
+                return;
+            } catch (ActivityNotFoundException ignored) {
+                // not installed, try the next one
+            }
+        }
+        startActivity(Intent.createChooser(send, "Send receipt")); // no WhatsApp: Android's share menu
+    }
+
+    // Images go to Pictures/Build Maintain (shows in the gallery), everything else to Downloads.
+    private Uri saveFile(byte[] data, String name, String mime) throws IOException {
+        boolean image = mime.startsWith("image/");
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+        values.put(MediaStore.MediaColumns.MIME_TYPE, mime);
+        values.put(MediaStore.MediaColumns.RELATIVE_PATH,
+            image ? Environment.DIRECTORY_PICTURES + "/Build Maintain" : Environment.DIRECTORY_DOWNLOADS);
+        Uri collection = image ? MediaStore.Images.Media.EXTERNAL_CONTENT_URI : MediaStore.Downloads.EXTERNAL_CONTENT_URI;
+        Uri file = getContentResolver().insert(collection, values);
+        if (file == null) throw new IOException("Could not create " + name);
+        try (OutputStream out = getContentResolver().openOutputStream(file)) {
+            out.write(data);
+        }
+        return file;
     }
 }

@@ -2,6 +2,7 @@ package app.buildmaintain;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -49,6 +50,14 @@ public class LinksTest {
         assertTrue(Links.skipOnBack("http://localhost:3000/login"));
         assertFalse(Links.skipOnBack("http://localhost:3000/admin/payments"));
         assertFalse(Links.skipOnBack("http://localhost:3000/admin"));
+    }
+
+    @Test public void whatsappJidNeedsInternationalDigits() {
+        assertEquals("919876543210@s.whatsapp.net", Links.whatsappJid("919876543210"));
+        assertNull(Links.whatsappJid(""));
+        assertNull(Links.whatsappJid(null));
+        assertNull(Links.whatsappJid("+919876543210"));
+        assertNull(Links.whatsappJid("12345"));
     }
 
     @Test public void nameFromContentDisposition() {

@@ -16,12 +16,25 @@ function downloadImage(image: Blob) {
   URL.revokeObjectURL(href);
 }
 
+function toBase64(image: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1]);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(image);
+  });
+}
+
+// Set by the Android app (android/), missing in browsers and the old Chrome-based app.
+type AppBridge = { shareToWhatsApp?: (base64Png: string, number: string) => boolean };
+
 export function ReceiptButtons({ paymentId, contact }: { paymentId: string; contact: ReceiptContact }) {
   const [preparing, setPreparing] = useState(false);
   const url = `/receipt/${paymentId}`;
 
-  // Only the paid API can put a file into a chat, so this hands the admin the image and opens the
-  // chat: copied on a computer (Ctrl+V), saved on a phone, where pasting an image is awkward.
+  // The Android app can open the chat with the image attached. Elsewhere only the paid API can put a
+  // file into a chat, so this hands the admin the image and opens the chat: copied on a computer
+  // (Ctrl+V), saved on a phone, where pasting an image is awkward.
   const send = async () => {
     setPreparing(true);
     const onPhone = /Android|iPhone|iPad|iPod/.test(navigator.userAgent);
@@ -31,6 +44,12 @@ export function ReceiptButtons({ paymentId, contact }: { paymentId: string; cont
       return r.blob();
     });
     try {
+      const app = (window as Window & { BuildMaintain?: AppBridge }).BuildMaintain;
+      if (app?.shareToWhatsApp?.(await toBase64(await image), whatsappNumber(contact.phone))) {
+        toast.success("Receipt attached in WhatsApp. Tap Send in the chat.", { duration: 10000 });
+        return;
+      }
+
       let copied = false;
       if (!onPhone) {
         try {

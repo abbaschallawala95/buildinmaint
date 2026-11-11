@@ -45,6 +45,11 @@ final class Links {
         return url.startsWith("data:") || url.startsWith("about:") || "/login".equals(path(url));
     }
 
+    /** WhatsApp's chat id for a number in international digits (as whatsappNumber() makes them), or null. */
+    static String whatsappJid(String number) {
+        return number != null && number.matches("\\d{11,15}") ? number + "@s.whatsapp.net" : null;
+    }
+
     private static String path(String url) {
         if (url == null) return null;
         try {
